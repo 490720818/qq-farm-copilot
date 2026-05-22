@@ -13,11 +13,11 @@ from loguru import logger
 from core.exceptions import BuySeedError
 from core.ui.assets import *
 from core.ui.page import page_main, page_shop, page_warehouse_seed
-from core.vision.cv_detector import SeedWarehouseSlot
 from models.config import PlantMode
 from models.game_data import get_best_crop_for_level, get_crop_by_name, get_crop_seed_price, get_latest_crop_for_level
 from utils.app_paths import load_config_json_array
 from utils.warehouse_seed_vision import (
+    WAREHOUSE_SEED_GRID_COLS,
     WAREHOUSE_SEED_GRID_ROI,
     detect_warehouse_seed_slot_boxes,
     group_warehouse_seed_rows,
@@ -46,7 +46,7 @@ WAREHOUSE_SEED_MATCH_THRESHOLD = 0.74
 # 仓库种子页向下滚动手势起点，用于继续查看后续种子格。
 WAREHOUSE_SEED_SCROLL_START = (320, 582)
 # 仓库种子页向下滚动手势终点；反向使用时用于回滚到顶部。
-WAREHOUSE_SEED_SCROLL_END = (320, 374)
+WAREHOUSE_SEED_SCROLL_END = (320, 394)
 # 仓库种子页最多滚动次数，避免结束标志或页面不变判定失效时无限循环。
 WAREHOUSE_SEED_MAX_SCROLLS = 5
 # 仓库种子区域滚动前后平均灰度差异阈值；低于该值视为页面不再变化。
@@ -66,6 +66,8 @@ class WarehouseSeedCandidate:
     confidence: float
     page_index: int = 0
     local_index: int = 0
+    raw_index: int = 0
+    locked: bool = False
     page_center: tuple[int, int] | None = None
     stitch_bbox: tuple[int, int, int, int] | None = None
 
@@ -105,33 +107,80 @@ class TaskMainBuySeedMixin:
         return expected in actual or f'{expected}种子' in actual
 
     @staticmethod
-    def _to_warehouse_seed_candidate(slot: SeedWarehouseSlot) -> WarehouseSeedCandidate:
-        """将视觉层种子格识别结果转换为播种流程候选。"""
-        return WarehouseSeedCandidate(
-            index=int(slot.index),
-            bbox=slot.bbox,
-            center=slot.center,
-            template_name=str(slot.template_name),
-            confidence=float(slot.confidence),
-            page_center=slot.center,
-        )
+    def _build_unlocked_slot_index_map(
+        slot_count: int,
+        locked_indexes: set[int],
+    ) -> dict[int, int]:
+        """构建原始槽位序号到“未锁定序号”的映射。"""
+        index_map: dict[int, int] = {}
+        available_index = 0
+        for raw_index in range(1, max(0, int(slot_count)) + 1):
+            if raw_index in locked_indexes:
+                continue
+            available_index += 1
+            index_map[raw_index] = available_index
+        return index_map
+
+    @staticmethod
+    def _warehouse_seed_locked_icon_roi(slot_bbox: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+        """返回仓库槽位右上角锁图标识别 ROI。"""
+        x1, y1, x2, y2 = slot_bbox
+        width = max(1, int(x2) - int(x1))
+        height = max(1, int(y2) - int(y1))
+        roi_w = max(18, min(34, width // 2))
+        roi_h = max(16, min(28, height // 3))
+        return int(x2) - roi_w, int(y1), int(x2), int(y1) + roi_h
+
+    def _detect_locked_warehouse_slot_indexes(
+        self,
+        screenshot: np.ndarray,
+        slot_boxes: list[tuple[int, int, int, int]],
+    ) -> set[int]:
+        """返回仓库槽位中带锁图标的原始序号（1-based）。"""
+        if screenshot is None or screenshot.size == 0 or not slot_boxes:
+            return set()
+        previous_image = self.ui.device.image
+        try:
+            self.ui.device.set_image(screenshot)
+            hit_buttons = self.ui.match_template_multi(ICON_ITEM_LOCKED, threshold=0.8)
+        finally:
+            self.ui.device.set_image(previous_image)
+        if not hit_buttons:
+            return set()
+
+        locked_indexes: set[int] = set()
+        hit_centers: list[tuple[int, int]] = []
+        for button in hit_buttons:
+            x1, y1, x2, y2 = [int(v) for v in button.area]
+            hit_centers.append(((x1 + x2) // 2, (y1 + y2) // 2))
+
+        for index, bbox in enumerate(slot_boxes, 1):
+            rx1, ry1, rx2, ry2 = self._warehouse_seed_locked_icon_roi(bbox)
+            for hx, hy in hit_centers:
+                if rx1 <= hx <= rx2 and ry1 <= hy <= ry2:
+                    locked_indexes.add(int(index))
+                    break
+        return locked_indexes
 
     def _confirm_warehouse_seed_slot(self, crop_name: str, candidate: WarehouseSeedCandidate) -> bool:
         """点击仓库候选种子格并通过详情标题 OCR 二次确认。"""
         cx, cy = candidate.page_center or candidate.center
-        self.engine.device.click_point(int(cx), int(cy), desc=f'确认仓库种子格{candidate.index}')
+        click_slot_index = int(candidate.raw_index or candidate.local_index or candidate.index)
+        self.engine.device.click_point(int(cx), int(cy), desc=f'确认仓库种子格{click_slot_index}')
         self.ui.device.sleep(0.35)
         text, score = self._ocr_warehouse_seed_detail_name()
         matched = self._is_warehouse_seed_detail_match(crop_name, text)
         logger.info(
             (
-                '自动播种: 仓库种子确认 | 作物={} 序号={} 页码={} 页内序号={} '
-                '模板={} 置信度={:.4f} 识别文本={} 识别分数={:.3f} 匹配={}'
+                '自动播种: 仓库种子确认 | 作物={} 可用序号={} 原始序号={} 页码={} 页内序号={} '
+                '锁定={} 模板={} 置信度={:.4f} 识别文本={} 识别分数={:.3f} 匹配={}'
             ),
             crop_name,
             candidate.index,
+            candidate.raw_index or candidate.local_index or candidate.index,
             int(candidate.page_index) + 1,
-            candidate.local_index or candidate.index,
+            candidate.local_index or candidate.raw_index or candidate.index,
+            candidate.locked,
             candidate.template_name,
             candidate.confidence,
             text,
@@ -193,7 +242,7 @@ class TaskMainBuySeedMixin:
     def _build_warehouse_seed_stitched_slots(
         self, screenshots: list[np.ndarray]
     ) -> tuple[np.ndarray | None, list[dict]]:
-        """按截图顺序拼接仓库种子行，返回拼接图和每个种子格的来源信息。"""
+        """按截图顺序拼接仓库种子行，返回拼接图和每个种子格来源信息（含锁定标记）。"""
         appended_rows: list[dict] = []
         rx1, ry1, rx2, ry2 = WAREHOUSE_SEED_GRID_ROI
 
@@ -203,6 +252,7 @@ class TaskMainBuySeedMixin:
             sh, sw = screenshot.shape[:2]
             cx1, cy1, cx2, cy2 = clip_warehouse_seed_bbox((rx1, ry1, rx2, ry2), width=sw, height=sh)
             boxes = detect_warehouse_seed_slot_boxes(screenshot)
+            locked_slot_indexes = self._detect_locked_warehouse_slot_indexes(screenshot, boxes)
             rows = group_warehouse_seed_rows(boxes)
             page_rows: list[dict] = []
             for row_index, row_boxes in enumerate(rows):
@@ -219,6 +269,7 @@ class TaskMainBuySeedMixin:
                         'y1': int(row_y1),
                         'x1': int(cx1),
                         'boxes': row_boxes,
+                        'locked_indexes': set(locked_slot_indexes),
                     }
                 )
 
@@ -264,7 +315,7 @@ class TaskMainBuySeedMixin:
             row_h = int(image.shape[0])
             row_y1 = int(row['y1'])
             row_x1 = int(row['x1'])
-            for col_index, (x1, y1, x2, y2) in enumerate(row['boxes'][:5]):
+            for col_index, (x1, y1, x2, y2) in enumerate(row['boxes'][:WAREHOUSE_SEED_GRID_COLS]):
                 slot_y1 = stitched_y + max(0, int(y1) - row_y1)
                 slot_y2 = stitched_y + min(row_h, int(y2) - row_y1)
                 slot_x1 = max(0, int(x1) - row_x1)
@@ -272,14 +323,16 @@ class TaskMainBuySeedMixin:
                 if slot_x2 <= slot_x1 or slot_y2 <= slot_y1:
                     continue
                 page_center = ((int(x1) + int(x2)) // 2, (int(y1) + int(y2)) // 2)
+                raw_local_index = int(row['row_index']) * WAREHOUSE_SEED_GRID_COLS + int(col_index) + 1
                 slot_metas.append(
                     {
-                        'global_index': global_row_index * 5 + int(col_index) + 1,
+                        'raw_global_index': global_row_index * WAREHOUSE_SEED_GRID_COLS + int(col_index) + 1,
                         'page_index': int(row['page_index']),
-                        'local_index': int(row['row_index']) * 5 + int(col_index) + 1,
+                        'local_index': int(raw_local_index),
                         'page_bbox': (int(x1), int(y1), int(x2), int(y2)),
                         'page_center': page_center,
                         'stitch_bbox': (int(slot_x1), int(slot_y1), int(slot_x2), int(slot_y2)),
+                        'locked': int(raw_local_index) in row['locked_indexes'],
                     }
                 )
             stitched_y += row_h
@@ -287,6 +340,13 @@ class TaskMainBuySeedMixin:
 
         if not normalized_images or not slot_metas:
             return None, []
+        available_index = 0
+        for meta in slot_metas:
+            if meta['locked']:
+                meta['global_index'] = 0
+                continue
+            available_index += 1
+            meta['global_index'] = int(available_index)
         return cv2.vconcat(normalized_images), slot_metas
 
     def _detect_seed_template_in_stitched_warehouse_pages(
@@ -296,11 +356,11 @@ class TaskMainBuySeedMixin:
         *,
         threshold: float = WAREHOUSE_SEED_MATCH_THRESHOLD,
         scale: float = WAREHOUSE_SEED_MATCH_SCALE,
-    ) -> list[WarehouseSeedCandidate]:
+    ) -> tuple[list[WarehouseSeedCandidate], bool]:
         """在多页仓库截图拼接图中查找目标种子，并映射回来源页坐标。"""
         stitched, slot_metas = self._build_warehouse_seed_stitched_slots(screenshots)
         if stitched is None or not slot_metas:
-            return []
+            return [], False
 
         stitch_boxes = [meta['stitch_bbox'] for meta in slot_metas]
         raw_candidates = self.engine.cv_detector.detect_seed_template_in_warehouse(
@@ -311,20 +371,39 @@ class TaskMainBuySeedMixin:
             scale=float(scale),
         )
         results: list[WarehouseSeedCandidate] = []
+        has_locked_candidate = False
         for candidate in raw_candidates:
             meta_index = int(candidate.index) - 1
             if meta_index < 0 or meta_index >= len(slot_metas):
                 continue
             meta = slot_metas[meta_index]
+            raw_global_index = int(meta['raw_global_index'])
+            is_locked = bool(meta['locked'])
+            if is_locked:
+                has_locked_candidate = True
+                logger.warning(
+                    '自动播种: 仓库种子命中锁定槽位 | 页码={} 页内序号={} 原始全局序号={} 置信度={:.4f}',
+                    int(meta['page_index']) + 1,
+                    int(meta['local_index']),
+                    raw_global_index,
+                    float(candidate.confidence),
+                )
+                continue
+
+            mapped_index = int(meta['global_index'])
+            if mapped_index <= 0:
+                continue
             results.append(
                 WarehouseSeedCandidate(
-                    index=int(meta['global_index']),
+                    index=mapped_index,
                     bbox=meta['page_bbox'],
                     center=meta['page_center'],
                     template_name=candidate.template_name,
                     confidence=float(candidate.confidence),
                     page_index=int(meta['page_index']),
                     local_index=int(meta['local_index']),
+                    raw_index=raw_global_index,
+                    locked=False,
                     page_center=meta['page_center'],
                     stitch_bbox=meta['stitch_bbox'],
                 )
@@ -332,12 +411,22 @@ class TaskMainBuySeedMixin:
 
         results.sort(key=lambda item: item.confidence, reverse=True)
         logger.info(
-            '仓库种子拼接匹配完成 | 页数={} 格数={} 候选={}',
+            '仓库种子拼接匹配完成 | 页数={} 格数={} 候选={} 锁定候选={}',
             len(screenshots),
             len(slot_metas),
-            [(item.index, item.page_index, item.local_index, round(float(item.confidence), 4)) for item in results],
+            [
+                (
+                    item.index,
+                    item.raw_index,
+                    item.page_index,
+                    item.local_index,
+                    round(float(item.confidence), 4),
+                )
+                for item in results
+            ],
+            has_locked_candidate,
         )
-        return results
+        return results, has_locked_candidate
 
     def _swipe_warehouse_seed_page_down(self) -> bool:
         """仓库种子列表向下翻一段固定距离。"""
@@ -421,22 +510,60 @@ class TaskMainBuySeedMixin:
 
         self.ui.ui_ensure(page_warehouse_seed, confirm_wait=0.5)
         cv_img = self.ui.device.screenshot()
-        candidates = self.engine.cv_detector.detect_seed_template_in_warehouse(
+        slot_boxes = detect_warehouse_seed_slot_boxes(cv_img)
+        locked_slot_indexes = self._detect_locked_warehouse_slot_indexes(cv_img, slot_boxes)
+        raw_candidates = self.engine.cv_detector.detect_seed_template_in_warehouse(
             cv_img,
             seed_id,
             threshold=WAREHOUSE_SEED_MATCH_THRESHOLD,
             scale=WAREHOUSE_SEED_MATCH_SCALE,
+            boxes=slot_boxes,
         )
+        unlocked_index_map = self._build_unlocked_slot_index_map(len(slot_boxes), locked_slot_indexes)
+        locked_hit_in_current_page = False
+        candidates: list[WarehouseSeedCandidate] = []
+        for raw in raw_candidates:
+            raw_index = int(raw.index)
+            is_locked = raw_index in locked_slot_indexes
+            mapped_index = int(unlocked_index_map.get(raw_index, 0))
+            flow_candidate = WarehouseSeedCandidate(
+                index=mapped_index if mapped_index > 0 else raw_index,
+                bbox=raw.bbox,
+                center=raw.center,
+                template_name=str(raw.template_name),
+                confidence=float(raw.confidence),
+                page_index=0,
+                local_index=raw_index,
+                raw_index=raw_index,
+                locked=is_locked,
+                page_center=raw.center,
+            )
+            if is_locked:
+                locked_hit_in_current_page = True
+                logger.warning(
+                    '自动播种: 仓库种子命中锁定槽位 | 作物={} 种子编号={} 原始序号={} 置信度={:.4f}',
+                    crop_name,
+                    seed_id,
+                    raw_index,
+                    float(raw.confidence),
+                )
+                continue
+            if mapped_index <= 0:
+                continue
+            candidates.append(flow_candidate)
+        candidates.sort(key=lambda item: item.confidence, reverse=True)
         logger.info(
-            '自动播种: 仓库种子匹配 | 作物={} 种子编号={} 候选={}',
+            '自动播种: 仓库种子匹配 | 作物={} 种子编号={} 锁定位={} 候选={}',
             crop_name,
             seed_id,
-            [(item.index, round(float(item.confidence), 4)) for item in candidates],
+            sorted(int(idx) for idx in locked_slot_indexes),
+            [(item.index, item.raw_index, round(float(item.confidence), 4)) for item in candidates],
         )
+        if locked_hit_in_current_page:
+            return None
         for candidate in candidates:
-            flow_candidate = self._to_warehouse_seed_candidate(candidate)
-            if self._confirm_warehouse_seed_slot(crop_name, flow_candidate):
-                return int(flow_candidate.index)
+            if self._confirm_warehouse_seed_slot(crop_name, candidate):
+                return int(candidate.index)
 
         if self._is_warehouse_seed_less_than_20_page():
             logger.info('自动播种: 仓库种子少于 20 且未找到目标 | 作物={}', crop_name)
@@ -446,18 +573,26 @@ class TaskMainBuySeedMixin:
         if len(screenshots) <= 1:
             return None
 
-        candidates = self._detect_seed_template_in_stitched_warehouse_pages(
+        candidates, has_locked_candidate = self._detect_seed_template_in_stitched_warehouse_pages(
             screenshots,
             seed_id,
             threshold=WAREHOUSE_SEED_MATCH_THRESHOLD,
             scale=WAREHOUSE_SEED_MATCH_SCALE,
         )
+        if has_locked_candidate:
+            return None
         logger.info(
             '自动播种: 仓库种子拼接匹配 | 作物={} 种子编号={} 候选={}',
             crop_name,
             seed_id,
             [
-                (item.index, int(item.page_index) + 1, item.local_index, round(float(item.confidence), 4))
+                (
+                    item.index,
+                    item.raw_index,
+                    int(item.page_index) + 1,
+                    item.local_index,
+                    round(float(item.confidence), 4),
+                )
                 for item in candidates
             ],
         )
