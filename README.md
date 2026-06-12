@@ -1,3 +1,5 @@
+# 腻了 弃坑了
+
 # QQ Farm Copilot
 
 基于 OpenCV + PyQt6 的 QQ 农场自动化工具，支持 PC 端 QQ和微信平台多开和后台运行。

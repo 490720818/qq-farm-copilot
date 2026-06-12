@@ -6,12 +6,9 @@
 - 每次修改完后，使用项目 `.venv` 下的 `ruff format` 进行代码格式化。
 - 出现问题时优先定位并修复根因，不要只靠代码推断原因，不要以“兜底/兼容分支”替代真实修复；临时兜底仅可作为明确标注的短期措施。
 : 仅格式化 Python 文件，跳过 `json/md` 等非 Python 文件（避免改坏 JSON 语法与文档排版）。
-: 推荐命令：`.\.venv\Scripts\python.exe -m ruff format core gui models tasks utils main.py private\main_window_core.py`
+: 推荐命令：`.\.venv\Scripts\python.exe -m ruff format core gui models tasks utils main.py`
 
-- `private/main_window_core.py` 与 `gui/main_window_core.pyd` 的关系与更新方式：
-: `private/main_window_core.py` 是 Fluent GUI 私有源码；`gui/main_window_core.pyd` 是发布/默认加载的二进制产物。
-: GUI 更新流程（必须遵守）：先改 `private/main_window_core.py`，验证通过后执行 `.\private\build_main_window_core_pyd.ps1` 重新编译并覆盖 `gui/main_window_core.pyd`。
-: 首次编译先执行：`.\private\build_main_window_core_pyd.ps1 -InstallDeps`。
+- `gui/main_window_core.py` 是 Fluent GUI 主窗口源码，也是运行与发布打包的默认加载模块；不再维护 `gui/main_window_core.pyd` 二进制产物。
 
 
 ## 0. 当前状态

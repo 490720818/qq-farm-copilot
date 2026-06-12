@@ -1,11 +1,11 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyd
 *.egg-info/
 dist/
 build/
 *.egg
-!gui/*.pyd
 
 # Kiro
 .kiro/
