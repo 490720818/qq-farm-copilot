@@ -345,7 +345,17 @@ class TaskFriend(TaskBase):
         timer = Timer(GUARD_DOG_DETECT_TIMEOUT_SECONDS, count=0).start()
         while 1:
             self.ui.device.screenshot()
-            matched = self.ui.match_gif_multi(ICON_GUARD_DOG, threshold=0.8)
+            img = self.ui.device.image
+            roi = None
+            if img is not None:
+                h, w = img.shape[:2]
+                # 护主犬位于农场区域，避开顶部信息栏（含大量米色噪点）和底部按钮区
+                roi = (0, h * 12 // 100, w, h * 60 // 100)
+            matched = self.ui.match_gif_multi(
+                ICON_GUARD_DOG,
+                threshold=0.75,
+                roi=roi,
+            )
             if matched:
                 logger.info('好友巡查: 找到护主犬，继续帮忙')
                 return True
