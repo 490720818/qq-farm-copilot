@@ -1,5 +1,3 @@
-# 腻了 弃坑了
-
 # QQ Farm Copilot
 
 基于 OpenCV + PyQt6 的 QQ 农场自动化工具，支持 PC 端 QQ和微信平台多开和后台运行。
@@ -62,7 +60,7 @@
 - `share`：独立分享任务（仅支持微信平台，通常配合每日触发）
 - `reward`：独立任务奖励领取（默认每 6 小时执行一次）
 - `gift`：物品领取任务（QQSVIP礼包、商城礼包、可选邮件领取；支持分项开关）
-- `event_shop`：活动商店任务（默认开启；每日 `10:01`、`20:01` 执行；领取商城免费物品）
+- `event_shop`：活动商店任务（默认关闭；每日 `10:01`、`20:01` 执行；领取商城免费物品）
 - `sell`：独立出售任务（仓库批量出售）
 - `land_scan`：地块巡查任务（默认关闭；每 30 分钟；按实例配置的左右滑动次数分段点击地块并 OCR 采集）
 - `timed_harvest`：定时收获任务（默认开启；每日 `00:00` 启动计算；依赖地块巡查结果并按聚合时间生成后续收获执行点；支持 `features.priority_window_seconds` 调度判断间隔）
@@ -253,7 +251,7 @@ python main.py
     }
   },
   "event_shop": {
-    "enabled": true,
+    "enabled": false,
     "trigger": "daily",
     "daily_times": ["10:01", "20:01"],
     "enabled_time_range": "00:00:00-23:59:59",

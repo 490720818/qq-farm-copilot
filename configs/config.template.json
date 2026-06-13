@@ -94,7 +94,7 @@
       }
     },
     "event_shop": {
-      "enabled": true,
+      "enabled": false,
       "trigger": "daily",
       "interval_seconds": 86400,
       "enabled_time_range": "00:00:00-23:59:59",

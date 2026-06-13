@@ -27,7 +27,7 @@
 - 护主犬帮忙过滤：`config.tasks.friend.features.help_only_guard_dog`（默认 `false`；开启后仅在好友详情匹配到 `icon_xxxx.gif` 时执行帮忙）
 - 数据统计落盘：`%APPDATA%/QQFarmCopilot/instances/<instance_id>/stats/daily_action_stats.csv`（按天累计 `harvest/operation/friend_steal/friend_help`）
 - 定时重启任务：`config.tasks.restart`（默认关闭；`trigger=interval`，默认 `interval_seconds=14400`；重启等待时间使用实例级 `config.window_restart_delay_seconds`，默认 `5` 秒）
-- 活动商店任务：`config.tasks.event_shop`（默认开启；`trigger=daily`，默认 `daily_times=["10:01","20:01"]`；当前仅执行商城免费物品领取）
+- 活动商店任务：`config.tasks.event_shop`（默认关闭；`trigger=daily`，默认 `daily_times=["10:01","20:01"]`；当前仅执行商城免费物品领取）
 - 定时收获任务：`config.tasks.timed_harvest`（默认开启；`trigger=daily`，默认 `daily_times=["00:00"]`；`features.aggregation_seconds` 默认 `60` 秒；`features.priority_window_seconds` 默认 `120` 秒；依赖地块巡查结果生成后续执行点）
 - 高级配置：`config.safety.debug_log_enabled` 控制 Debug 日志输出；`config.safety.stuck_seconds`（默认 `60` 秒）与 `config.safety.stuck_long_wait_seconds`（默认 `120` 秒）控制无有效点击的卡死判定阈值
 - 异常恢复配置：`config.recovery`（`task_restart_attempts/task_retry_delay_seconds/window_launch_wait_timeout_seconds/startup_retry_step_sleep_seconds/startup_stabilize_timeout_seconds`）
@@ -37,7 +37,7 @@
 - 播种稳定超时：`config.planting.planting_stable_timeout_seconds`（默认 `3.0` 秒；用于背景树锚点稳定等待超时）
 - 土地滑动次数：`config.planting.land_swipe_right_times`（默认 `4`）与 `config.planting.land_swipe_left_times`（默认 `6`）；地块巡查与土地升级共用，滑动坐标仍使用代码内静态坐标
 - 播种选种：`config.planting.warehouse_first` 默认开启；开启时优先按 `BgPatchNumberOCR` 在区域 `x:[50,480], y:[地块点击y+40, 地块点击y+80]` 识别最左数字块
-- 活动作物跳过：`SEED_BTN_HEART_FRUIT`（爱心果）与 `SEED_BTN_HAHA_PUMPKIN`（哈哈南瓜）固定排除；`config.planting.skip_event_crops` 默认关闭，若与 `warehouse_first` 同时开启则按关闭仓库优先处理
+- 活动作物跳过：`SEED_BTN_HEART_FRUIT`（爱心果）、`SEED_BTN_HAHA_PUMPKIN`（哈哈南瓜）与 `SEED_BTN_COLORED_GLAZE_LOTUS`（琉璃莲）固定排除；`config.planting.skip_event_crops` 默认关闭，若与 `warehouse_first` 同时开启则按关闭仓库优先处理
 - 等级同步：播种前执行等级 OCR；由 `config.planting.level_ocr_enabled` 控制，识别后回写 `config.planting.player_level`；统一 ROI 使用 `tasks/main.py` 内常量（不区分平台）
 - 小程序快捷方式：`config.window_shortcut_path` 保存桌面快捷方式路径（`.lnk`，在设置面板“窗口关键词”上方选择）；`config.window_shortcut_launch_delay_seconds`（默认 `3` 秒）控制快捷方式拉起后到窗口初始化之间的等待时间
 - 窗口选择：`config.window_select_rule` 仅保存匹配顺序（`auto` / `index:N`），不保存 `hwnd`
@@ -192,7 +192,7 @@
 : 物品领取任务，支持分项开关：`features.auto_svip_gift`（默认 true）、`features.auto_mall_gift`（默认 true）、`features.auto_mail`（默认 true，依赖 `menu_goto_mail` 导航链路进入邮箱页）。
 
 - `event_shop`
-: 活动商店任务（默认开启，默认 `trigger=daily`，默认 `daily_times=["10:01","20:01"]`）；当前流程仅领取商城免费物品。
+: 活动商店任务（默认关闭，默认 `trigger=daily`，默认 `daily_times=["10:01","20:01"]`）；当前流程仅领取商城免费物品。
 
 - `land_scan`
 : 地块巡查任务（默认关闭，默认 `interval_seconds=1800`）；左右滑动次数来自 `config.planting.land_swipe_right_times/land_swipe_left_times`，分段扫描右到左前 5 列与左到右前 4 列，最后回正，并对每个点击地块执行 OCR 采集；从文本中正则提取 `HH:MM:SS` 回写到 `config.land.plots[].maturity_countdown`，并按该地块实际采样时刻写入 `config.land.plots[].countdown_sync_time`，同时标记 `config.land.plots[].need_upgrade` 与 `config.land.plots[].need_planting`（空地为 `true`）。

@@ -99,6 +99,7 @@ MENU_CHECK = Button(area={'qq': (31, 300, 51, 319), 'wechat': (31, 300, 51, 319)
 MENU_GOTO_MAIL = Button(area={'qq': (30, 486, 44, 505), 'wechat': (30, 486, 44, 505)}, color={'qq': (237, 206, 137), 'wechat': (237, 206, 137)}, button={'qq': (30, 486, 44, 505), 'wechat': (30, 486, 44, 505)}, file={'qq': 'templates/qq/ui/menu_goto_mail.png', 'wechat': 'templates/qq/ui/menu_goto_mail.png'}, name='menu_goto_mail')  # 邮件
 MENU_GOTO_MAIN = Button(area={'qq': (31, 300, 51, 319), 'wechat': (31, 300, 51, 319)}, color={'qq': (244, 210, 136), 'wechat': (244, 210, 136)}, button={'qq': (31, 300, 51, 319), 'wechat': (31, 300, 51, 319)}, file={'qq': 'templates/qq/ui/menu_goto_main.png', 'wechat': 'templates/qq/ui/menu_goto_main.png'}, name='menu_goto_main')
 PET_CHECK = Button(area={'qq': (241, 77, 294, 105), 'wechat': (241, 77, 294, 105)}, color={'qq': (232, 199, 181), 'wechat': (232, 199, 181)}, button={'qq': (241, 77, 294, 105), 'wechat': (241, 77, 294, 105)}, file={'qq': 'templates/qq/ui/pet_check.png', 'wechat': 'templates/qq/ui/pet_check.png'}, name='pet_check')
+SEED_BTN_COLORED_GLAZE_LOTUS = Button(area={'qq': (171, 606, 209, 629), 'wechat': (171, 606, 209, 629)}, color={'qq': (222, 208, 238), 'wechat': (222, 208, 238)}, button={'qq': (171, 606, 209, 629), 'wechat': (171, 606, 209, 629)}, file={'qq': 'templates/qq/seedbtn/seed_btn_colored_glaze_lotus.png', 'wechat': 'templates/qq/seedbtn/seed_btn_colored_glaze_lotus.png'}, name='seed_btn_colored_glaze_lotus')
 SEED_BTN_HAHA_PUMPKIN = Button(area={'qq': (84, 674, 113, 693), 'wechat': (84, 674, 113, 693)}, color={'qq': (233, 180, 119), 'wechat': (233, 180, 119)}, button={'qq': (84, 674, 113, 693), 'wechat': (84, 674, 113, 693)}, file={'qq': 'templates/qq/seedbtn/seed_btn_haha_pumpkin.png', 'wechat': 'templates/qq/seedbtn/seed_btn_haha_pumpkin.png'}, name='seed_btn_haha_pumpkin')
 SEED_BTN_HEART_FRUIT = Button(area={'qq': (81, 613, 120, 637), 'wechat': (81, 613, 120, 637)}, color={'qq': (243, 176, 78), 'wechat': (243, 176, 78)}, button={'qq': (81, 613, 120, 637), 'wechat': (81, 613, 120, 637)}, file={'qq': 'templates/qq/seedbtn/seed_btn_heart_fruit.png', 'wechat': 'templates/qq/seedbtn/seed_btn_heart_fruit.png'}, name='seed_btn_heart_fruit')
 SEED_BTN_MUGWORT = Button(area={'qq': (193, 651, 219, 671), 'wechat': (193, 651, 219, 671)}, color={'qq': (111, 165, 77), 'wechat': (111, 165, 77)}, button={'qq': (193, 651, 219, 671), 'wechat': (193, 651, 219, 671)}, file={'qq': 'templates/qq/seedbtn/seed_btn_mugwort.png', 'wechat': 'templates/qq/seedbtn/seed_btn_mugwort.png'}, name='seed_btn_mugwort')
@@ -208,6 +209,7 @@ ASSET_NAME_TO_CONST = {
     'menu_goto_mail': MENU_GOTO_MAIL,
     'menu_goto_main': MENU_GOTO_MAIN,
     'pet_check': PET_CHECK,
+    'seed_btn_colored_glaze_lotus': SEED_BTN_COLORED_GLAZE_LOTUS,
     'seed_btn_haha_pumpkin': SEED_BTN_HAHA_PUMPKIN,
     'seed_btn_heart_fruit': SEED_BTN_HEART_FRUIT,
     'seed_btn_mugwort': SEED_BTN_MUGWORT,
