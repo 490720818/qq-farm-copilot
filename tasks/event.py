@@ -22,11 +22,13 @@ DEFAULT_DAILY_TIMES = ['00:01']
 DEFAULT_RESOURCES = [
     'btn_hefeng_100',
     'btn_hefeng_101',
-    'btn_hefeng_102',
+    'btn_hefeng_102:threshold=0.95',
     'btn_hefeng_103:2.0:top',
     'btn_hefeng_104_s',
     'btn_hefeng_105_s:2.0:top',
     'btn_hefeng_106',
+    'btn_hefeng_107:1.5',
+    'btn_hefeng_108',
 ]
 DEFAULT_END_TIME = '2026-07-21 00:00:00'
 CLICK_ANIMATION_DELAY = 0.8
@@ -58,10 +60,12 @@ class TaskEvent(TaskBase):
             logger.warning('活动: 没有可执行资源')
             return self.ok()
 
-        for name, button, delay, top_click in buttons:
+        for name, button, delay, top_click, threshold in buttons:
             self.ui.device.screenshot()
-            if self.ui.appear_then_click(button, offset=30, interval=1, threshold=0.86):
-                logger.info('活动: 点击资源 | name={} delay={}s top_click={}', name, delay, top_click)
+            if self.ui.appear_then_click(button, offset=30, interval=1, threshold=threshold):
+                logger.info(
+                    '活动: 点击资源 | name={} delay={}s top_click={} threshold={}', name, delay, top_click, threshold
+                )
                 self.ui.device.sleep(delay)
                 if top_click:
                     self._click_top_area()
@@ -156,13 +160,15 @@ class TaskEvent(TaskBase):
                 continue
         return None
 
-    def _resolve_buttons(self, feature) -> list[tuple[str, Button, float, bool]]:
-        """根据配置解析出需要点击的资源按钮列表、点击后延迟及是否点击顶部。"""
+    DEFAULT_THRESHOLD = 0.86
+
+    def _resolve_buttons(self, feature) -> list[tuple[str, Button, float, bool, float]]:
+        """根据配置解析出需要点击的资源按钮列表、点击后延迟、是否点击顶部及置信度阈值。"""
         use_coupon = bool(feature.use_coupon)
         raw_resources = list(feature.resources) if isinstance(feature.resources, list) else []
-        out: list[tuple[str, Button, float, bool]] = []
+        out: list[tuple[str, Button, float, bool, float]] = []
         for entry in sorted(raw_resources):
-            name, delay, top_click = self._parse_resource_entry(str(entry or '').strip())
+            name, delay, top_click, threshold = self._parse_resource_entry(str(entry or '').strip())
             if not name:
                 continue
             if name.endswith('_s') and not use_coupon:
@@ -172,23 +178,30 @@ class TaskEvent(TaskBase):
             if button is None:
                 logger.warning('活动: 未知资源 | name={}', name)
                 continue
-            out.append((name, button, delay, top_click))
+            out.append((name, button, delay, top_click, threshold))
         return out
 
     @staticmethod
-    def _parse_resource_entry(entry: str) -> tuple[str, float, bool]:
-        """解析资源项，支持 `btn_name:delay:top` 格式；省略项使用默认。"""
+    def _parse_resource_entry(entry: str) -> tuple[str, float, bool, float]:
+        """解析资源项，支持 `btn_name:delay:top:threshold=0.9` 格式；省略项使用默认。"""
         if not entry:
-            return '', CLICK_ANIMATION_DELAY, False
+            return '', CLICK_ANIMATION_DELAY, False, TaskEvent.DEFAULT_THRESHOLD
         if ':' not in entry:
-            return entry, CLICK_ANIMATION_DELAY, False
+            return entry, CLICK_ANIMATION_DELAY, False, TaskEvent.DEFAULT_THRESHOLD
         parts = [part.strip() for part in str(entry).split(':')]
         name = parts[0]
         delay = CLICK_ANIMATION_DELAY
         top_click = False
+        threshold = TaskEvent.DEFAULT_THRESHOLD
         for part in parts[1:]:
             if part == 'top':
                 top_click = True
+                continue
+            if part.lower().startswith('threshold='):
+                try:
+                    threshold = max(0.0, min(1.0, float(part.split('=', 1)[1])))
+                except Exception:
+                    pass
                 continue
             if not part:
                 continue
@@ -197,7 +210,7 @@ class TaskEvent(TaskBase):
             except Exception:
                 # 无法识别时直接跳过该段。
                 continue
-        return name, delay, top_click
+        return name, delay, top_click, threshold
 
     def _click_top_area(self) -> None:
         """点击设备顶部偏上位置，用于关闭活动后的特定弹窗。"""

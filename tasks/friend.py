@@ -84,7 +84,7 @@ STEAL_TOTAL_OCR_REGION = (420, 240, 530, 390)
 # 偷取统计金额 token 正则：支持纯数字/小数/万单位，允许前导负号。
 STEAL_AMOUNT_TOKEN_PATTERN = re.compile(r'-?\d+(?:\.\d+)?(?:万)?')
 # 四格作物单独偷取图标模板匹配阈值。
-SINGLE_CROP_STEAL_THRESHOLD = 0.65
+SINGLE_CROP_STEAL_THRESHOLD = 0.6
 
 
 class TaskFriend(TaskBase):
@@ -403,7 +403,7 @@ class TaskFriend(TaskBase):
         return has_steal_action, has_help_action
 
     def _detect_single_crop_steal_results(self) -> list[DetectResult]:
-        """在好友农场 40%-70% 高度区域检测四格作物单独偷取图标。"""
+        """在好友农场 40%-65% 高度区域检测四格作物单独偷取图标。"""
         self.ui.device.screenshot()
         image = self.ui.device.image
         if image is None:
@@ -719,7 +719,7 @@ class TaskFriend(TaskBase):
         return False
 
     def _get_single_crop_steal_roi(self) -> tuple[int, int, int, int] | None:
-        """返回好友农场四格作物单独偷取图标的检测 ROI（页面上方 40%-70% 区域）。"""
+        """返回好友农场四格作物单独偷取图标的检测 ROI（页面上方 40%-65% 区域）。"""
         image = self.ui.device.image
         if image is None:
             return None
@@ -731,7 +731,7 @@ class TaskFriend(TaskBase):
         if image is None:
             return None
         h, w = image.shape[:2]
-        return (0, int(h * 0.4), w, int(h * 0.7))
+        return (int(w * 0.1), int(h * 0.4),int(w * 0.8), int(h * 0.65))
 
     def _detect_single_crop_icons(
         self,
@@ -763,7 +763,7 @@ class TaskFriend(TaskBase):
         return results
 
     def _has_single_crop_steal_icons(self, image: np.ndarray | None = None) -> bool:
-        """判断当前好友农场 40%-70% 高度区域是否存在四格作物单独偷取图标。"""
+        """判断当前好友农场 40%-65% 高度区域是否存在四格作物单独偷取图标。"""
         if image is None:
             self.ui.device.screenshot()
             image = self.ui.device.image
@@ -777,7 +777,7 @@ class TaskFriend(TaskBase):
         enable_steal_stats: bool,
         pre_detected_results: list[DetectResult] | None = None,
     ) -> bool:
-        """在农场区域（40%-70% 高度）内检测并点击所有四格作物单独偷取图标。"""
+        """在农场区域（40%-65% 高度）内检测并点击所有四格作物单独偷取图标。"""
         if pre_detected_results is not None:
             results = pre_detected_results
         else:

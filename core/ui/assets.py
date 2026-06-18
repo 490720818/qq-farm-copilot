@@ -36,7 +36,9 @@ BTN_HEFENG_102 = Button(area={'qq': (27, 701, 68, 726), 'wechat': (27, 701, 68, 
 BTN_HEFENG_103 = Button(area={'qq': (355, 761, 445, 814), 'wechat': (355, 761, 445, 814)}, color={'qq': (238, 199, 143), 'wechat': (238, 199, 143)}, button={'qq': (355, 761, 445, 814), 'wechat': (355, 761, 445, 814)}, file={'qq': 'templates/qq/event/btn_hefeng_103.png', 'wechat': 'templates/qq/event/btn_hefeng_103.png'}, name='btn_hefeng_103')
 BTN_HEFENG_104_S = Button(area={'qq': (349, 763, 445, 815), 'wechat': (349, 763, 445, 815)}, color={'qq': (212, 184, 125), 'wechat': (212, 184, 125)}, button={'qq': (349, 763, 445, 815), 'wechat': (349, 763, 445, 815)}, file={'qq': 'templates/qq/event/btn_hefeng_104_s.png', 'wechat': 'templates/qq/event/btn_hefeng_104_s.png'}, name='btn_hefeng_104_s')
 BTN_HEFENG_105_S = Button(area={'qq': (359, 534, 407, 558), 'wechat': (359, 534, 407, 558)}, color={'qq': (191, 200, 113), 'wechat': (191, 200, 113)}, button={'qq': (359, 534, 407, 558), 'wechat': (359, 534, 407, 558)}, file={'qq': 'templates/qq/event/btn_hefeng_105_s.png', 'wechat': 'templates/qq/event/btn_hefeng_105_s.png'}, name='btn_hefeng_105_s')
-BTN_HEFENG_106 = Button(area={'qq': (17, 62, 56, 95), 'wechat': (17, 62, 56, 95)}, color={'qq': (179, 197, 166), 'wechat': (179, 197, 166)}, button={'qq': (17, 62, 56, 95), 'wechat': (17, 62, 56, 95)}, file={'qq': 'templates/qq/event/btn_hefeng_106.png', 'wechat': 'templates/qq/event/btn_hefeng_106.png'}, name='btn_hefeng_106')
+BTN_HEFENG_106 = Button(area={'qq': (199, 890, 226, 923), 'wechat': (199, 890, 226, 923)}, color={'qq': (233, 161, 144), 'wechat': (233, 161, 144)}, button={'qq': (199, 890, 226, 923), 'wechat': (199, 890, 226, 923)}, file={'qq': 'templates/qq/event/btn_hefeng_106.png', 'wechat': 'templates/qq/event/btn_hefeng_106.png'}, name='btn_hefeng_106')
+BTN_HEFENG_107 = Button(area={'qq': (224, 810, 319, 835), 'wechat': (224, 810, 319, 835)}, color={'qq': (150, 167, 133), 'wechat': (150, 167, 133)}, button={'qq': (224, 810, 319, 835), 'wechat': (224, 810, 319, 835)}, file={'qq': 'templates/qq/event/btn_hefeng_107.png', 'wechat': 'templates/qq/event/btn_hefeng_107.png'}, name='btn_hefeng_107')
+BTN_HEFENG_108 = Button(area={'qq': (17, 62, 56, 95), 'wechat': (17, 62, 56, 95)}, color={'qq': (179, 197, 166), 'wechat': (179, 197, 166)}, button={'qq': (17, 62, 56, 95), 'wechat': (17, 62, 56, 95)}, file={'qq': 'templates/qq/event/btn_hefeng_108.png', 'wechat': 'templates/qq/event/btn_hefeng_108.png'}, name='btn_hefeng_108')
 BTN_HOME = Button(area={'qq': (465, 697, 510, 729), 'wechat': (465, 697, 510, 729)}, color={'qq': (181, 126, 76), 'wechat': (181, 126, 76)}, button={'qq': (465, 697, 510, 729), 'wechat': (465, 697, 510, 729)}, file={'qq': 'templates/qq/btn/btn_home.png', 'wechat': 'templates/qq/btn/btn_home.png'}, name='btn_home')  # 回家
 BTN_LAND_LEFT = Button(area={'qq': (152, 593, 167, 613), 'wechat': (152, 593, 167, 613)}, color={'qq': (191, 199, 88), 'wechat': (191, 199, 88)}, button={'qq': (152, 593, 167, 613), 'wechat': (152, 593, 167, 613)}, file={'qq': 'templates/qq/btn/btn_land_left.png', 'wechat': 'templates/qq/btn/btn_land_left.png'}, name='btn_land_left')
 BTN_LAND_POP_EMPTY = Button(area={'qq': (194, 507, 222, 521), 'wechat': (194, 507, 222, 521)}, color={'qq': (208, 173, 147), 'wechat': (208, 173, 147)}, button={'qq': (194, 507, 222, 521), 'wechat': (194, 507, 222, 521)}, file={'qq': 'templates/qq/btn/btn_land_pop_empty.png', 'wechat': 'templates/qq/btn/btn_land_pop_empty.png'}, name='btn_land_pop_empty')
@@ -47,6 +49,8 @@ BTN_LOGIN_AGAIN = Button(area={'qq': (325, 572, 423, 598), 'wechat': (325, 572, 
 BTN_MALL_FREE = Button(area={'qq': (122, 539, 183, 569), 'wechat': (123, 536, 183, 568)}, color={'qq': (146, 167, 48), 'wechat': (140, 170, 45)}, button={'qq': (122, 539, 183, 569), 'wechat': (123, 536, 183, 568)}, file={'qq': 'templates/qq/btn/btn_mall_free.png', 'wechat': 'templates/wechat/btn/btn_mall_free.png'}, name='btn_mall_free')
 BTN_MALL_FREE_DONE = Button(area={'qq': (121, 539, 183, 570), 'wechat': (123, 535, 183, 568)}, color={'qq': (208, 176, 139), 'wechat': (210, 182, 149)}, button={'qq': (121, 539, 183, 570), 'wechat': (123, 535, 183, 568)}, file={'qq': 'templates/qq/btn/btn_mall_free_done.png', 'wechat': 'templates/wechat/btn/btn_mall_free_done.png'}, name='btn_mall_free_done')
 BTN_MATURE = Button(area={'qq': (261, 457, 278, 479), 'wechat': (261, 457, 278, 479)}, color={'qq': (201, 181, 78), 'wechat': (201, 181, 78)}, button={'qq': (261, 457, 278, 479), 'wechat': (261, 457, 278, 479)}, file={'qq': 'templates/qq/btn/btn_mature.png', 'wechat': 'templates/qq/btn/btn_mature.png'}, name='btn_mature')
+BTN_MONTHLY_CARD = Button(area={'qq': (213, 893, 333, 922), 'wechat': (213, 893, 333, 922)}, color={'qq': (182, 139, 102), 'wechat': (182, 139, 102)}, button={'qq': (213, 893, 333, 922), 'wechat': (213, 893, 333, 922)}, file={'qq': 'templates/qq/btn/btn_monthly_card.png', 'wechat': 'templates/qq/btn/btn_monthly_card.png'}, name='btn_monthly_card')
+BTN_MONTHLY_CARD_ACCEPT = Button(area={'qq': (246, 730, 298, 757), 'wechat': (246, 730, 298, 757)}, color={'qq': (187, 204, 104), 'wechat': (187, 204, 104)}, button={'qq': (246, 730, 298, 757), 'wechat': (246, 730, 298, 757)}, file={'qq': 'templates/qq/btn/btn_monthly_card_accept.png', 'wechat': 'templates/qq/btn/btn_monthly_card_accept.png'}, name='btn_monthly_card_accept')
 BTN_ONECLICK_OPEN = Button(area={'qq': (326, 805, 419, 829), 'wechat': (326, 805, 419, 829)}, color={'qq': (183, 197, 88), 'wechat': (183, 197, 88)}, button={'qq': (326, 805, 419, 829), 'wechat': (326, 805, 419, 829)}, file={'qq': 'templates/qq/btn/btn_oneclick_open.png', 'wechat': 'templates/qq/btn/btn_oneclick_open.png'}, name='btn_oneclick_open')
 BTN_ORDINARY_FERTILIZER = Button(area={'qq': (115, 610, 159, 642), 'wechat': (115, 610, 159, 642)}, color={'qq': (200, 134, 76), 'wechat': (200, 134, 76)}, button={'qq': (115, 610, 159, 642), 'wechat': (115, 610, 159, 642)}, file={'qq': 'templates/qq/btn/btn_ordinary_fertilizer.png', 'wechat': 'templates/qq/btn/btn_ordinary_fertilizer.png'}, name='btn_ordinary_fertilizer')
 BTN_ORGANIC_FERTILIZER = Button(area={'qq': (202, 613, 248, 640), 'wechat': (202, 613, 248, 640)}, color={'qq': (175, 139, 35), 'wechat': (175, 139, 35)}, button={'qq': (202, 613, 248, 640), 'wechat': (202, 613, 248, 640)}, file={'qq': 'templates/qq/btn/btn_organic_fertilizer.png', 'wechat': 'templates/qq/btn/btn_organic_fertilizer.png'}, name='btn_organic_fertilizer')
@@ -151,6 +155,8 @@ ASSET_NAME_TO_CONST = {
     'btn_hefeng_104_s': BTN_HEFENG_104_S,
     'btn_hefeng_105_s': BTN_HEFENG_105_S,
     'btn_hefeng_106': BTN_HEFENG_106,
+    'btn_hefeng_107': BTN_HEFENG_107,
+    'btn_hefeng_108': BTN_HEFENG_108,
     'btn_home': BTN_HOME,
     'btn_land_left': BTN_LAND_LEFT,
     'btn_land_pop_empty': BTN_LAND_POP_EMPTY,
@@ -161,6 +167,8 @@ ASSET_NAME_TO_CONST = {
     'btn_mall_free': BTN_MALL_FREE,
     'btn_mall_free_done': BTN_MALL_FREE_DONE,
     'btn_mature': BTN_MATURE,
+    'btn_monthly_card': BTN_MONTHLY_CARD,
+    'btn_monthly_card_accept': BTN_MONTHLY_CARD_ACCEPT,
     'btn_oneclick_open': BTN_ONECLICK_OPEN,
     'btn_ordinary_fertilizer': BTN_ORDINARY_FERTILIZER,
     'btn_organic_fertilizer': BTN_ORGANIC_FERTILIZER,

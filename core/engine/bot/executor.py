@@ -1060,7 +1060,7 @@ class BotExecutorMixin:
 
         if ok:
             return TaskResult(success=True)
-        return TaskResult(success=False, error='异常恢复重启失败')
+        return TaskResult(success=False, error=f'异常恢复重启失败，上一步异常：{source_task}({err_type})')
 
     def _queue_restart_task(
         self,
