@@ -10,6 +10,7 @@ from core.ui.assets import (
     BTN_CLOSE,
     BTN_CONFIRM,
     BTN_PLANTING,
+    BTN_SPECIAL_WAREHOUSE,
     MAIN_GOTO_WAREHOUSE,
 )
 from core.ui.page import page_main, page_warehouse
@@ -28,9 +29,27 @@ class TaskSell(TaskBase):
         """执行独立出售任务并返回调度结果。"""
         self.ui.ui_ensure(page_warehouse)
 
-        if not self._batch_sell_once():
-            return self.ok()
+        # if not self._batch_sell_once():
+        #     return self.ok()
+        self._batch_sell_once()
+        self.ui.appear_then_click(MAIN_GOTO_WAREHOUSE, offset=30, interval=1, static=False)
+        if self._switch_to_special_warehouse():
+            if not self._batch_sell_once():
+                return self.ok()
+        # 切换到超变果实仓库并执行批量出售
+
         return self.ok()
+
+    def _switch_to_special_warehouse(self) -> bool:
+        """点击切换到超变果实仓库。"""
+        self.ui.device.sleep(0.8)
+        self.ui.device.screenshot()
+        if self.ui.appear_then_click(BTN_SPECIAL_WAREHOUSE, offset=30, interval=1, static=False):
+            logger.info('出售流程: 已切换到超变果实仓库')
+            self.ui.device.sleep(0.5)
+            return True
+        logger.info('出售流程: 未识别到超变果实仓库按钮')
+        return False
 
     def _batch_sell_once(self) -> bool:
         """仓库内执行一次批量出售。"""
@@ -38,6 +57,7 @@ class TaskSell(TaskBase):
         batch_clicked = False
 
         while 1:
+            self.ui.device.sleep(0.8)
             self.ui.device.screenshot()
 
             if self.ui.appear_then_click(BTN_BATCH_SELL, offset=30, interval=1):

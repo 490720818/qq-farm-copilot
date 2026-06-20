@@ -44,7 +44,8 @@
       "activity_name": "活动名称",
       "resources": "活动资源",
       "use_coupon": "使用点券",
-      "end_time": "结束时间"
+      "end_time": "结束时间",
+      "skip_probability": "跳过概率"
     },
     "feature_hints": {
       "reward.claim_growth_task": "QQ平台会直接领取",
@@ -57,7 +58,8 @@
       "main.use_organic_fertilizer": "开启后优先有机化肥（可多次施肥），关闭则优先普通化肥（普通不足时自动使用有机）",
       "timed_harvest.aggregation_seconds": "地块成熟时间落在同一聚合时间段内时，统一处理收获操作。",
       "timed_harvest.priority_window_seconds": "当定时收获会晚于其他待执行任务时，若时间差在该窗口内，则优先执行定时收获。",
-      "event.end_time": "到达指定时间后任务开关会自动关闭。"
+      "event.end_time": "到达指定时间后任务开关会自动关闭。",
+      "grass.skip_probability": "0 不跳过，1 会跳过所有好友（无意义）"
     },
     "enabled": "启用",
     "detail_text": "详情",

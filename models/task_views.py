@@ -61,6 +61,11 @@ class FriendFeatures:
 
 
 @dataclass(slots=True)
+class GrassFeatures:
+    skip_probability: int = 0
+
+
+@dataclass(slots=True)
 class RewardFeatures:
     claim_growth_task: bool = False
     claim_daily_task: bool = True
@@ -99,7 +104,7 @@ class FriendTaskView(TaskViewBase):
 
 @dataclass(slots=True)
 class GrassTaskView(TaskViewBase):
-    feature: EmptyFeatures = field(default_factory=EmptyFeatures)
+    feature: GrassFeatures = field(default_factory=GrassFeatures)
 
 
 @dataclass(slots=True)
@@ -145,7 +150,7 @@ class RestartTaskView(TaskViewBase):
 TASK_FEATURE_CLASS_MAP = {
     'main': MainFeatures,
     'friend': FriendFeatures,
-    'grass': EmptyFeatures,
+    'grass': GrassFeatures,
     'share': EmptyFeatures,
     'reward': RewardFeatures,
     'gift': GiftFeatures,

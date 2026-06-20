@@ -68,7 +68,9 @@
       "daily_times": ["00:01"],
       "next_run": "2026-01-01 00:00",
       "failure_interval_seconds": 300,
-      "features": {}
+      "features": {
+        "skip_probability": 0.2
+      }
     },
     "share": {
       "enabled": true,

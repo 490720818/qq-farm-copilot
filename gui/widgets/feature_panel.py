@@ -21,6 +21,7 @@ from qfluentwidgets import (
     CheckBox,
     ComboBox,
     DateTimeEdit,
+    DoubleSpinBox,
     FluentIcon,
     LineEdit,
     ListWidget,
@@ -166,6 +167,7 @@ class FeaturePanel(QWidget):
         self._loading = True
         self._bool_widgets: dict[tuple[str, str], CheckBox] = {}
         self._int_widgets: dict[tuple[str, str], SpinBox] = {}
+        self._float_widgets: dict[tuple[str, str], DoubleSpinBox] = {}
         self._text_widgets: dict[tuple[str, str], LineEdit] = {}
         self._time_range_widgets: dict[tuple[str, str], tuple[TimeEdit, TimeEdit]] = {}
         self._interval_widgets: dict[tuple[str, str], tuple[SpinBox, ComboBox]] = {}
@@ -406,6 +408,27 @@ class FeaturePanel(QWidget):
                 form.addRow(self._field_label(label, card), field)
                 continue
 
+            if isinstance(value, float):
+                spin = DoubleSpinBox(card)
+                spin.setRange(0.0, 1.0)
+                spin.setSingleStep(0.05)
+                spin.setDecimals(2)
+                spin.valueChanged.connect(self._auto_save)
+                self._float_widgets[(task_name, feature_name)] = spin
+                field_widget: QWidget = spin
+                field = QWidget(card)
+                field_layout = QVBoxLayout(field)
+                field_layout.setContentsMargins(0, 0, 0, 0)
+                field_layout.setSpacing(2)
+                field_layout.addWidget(field_widget)
+                if hint_text:
+                    hint = CaptionLabel(hint_text, field)
+                    hint.setWordWrap(True)
+                    hint.setStyleSheet(f'color: {SETTINGS_HINT_COLOR};')
+                    field_layout.addWidget(hint)
+                form.addRow(self._field_label(label, card), field)
+                continue
+
             if isinstance(value, int):
                 if feature_name.endswith('_seconds'):
                     spin = SpinBox(card)
@@ -569,6 +592,13 @@ class FeaturePanel(QWidget):
             feature_map = dict(task_cfg.features or {})
             feature_map[feature_name] = self._normalize_int_feature_value(spin.value())
             task_cfg.features = feature_map
+        for (task_name, feature_name), spin in self._float_widgets.items():
+            task_cfg = self.config.tasks.get(task_name)
+            if task_cfg is None:
+                continue
+            feature_map = dict(task_cfg.features or {})
+            feature_map[feature_name] = float(spin.value())
+            task_cfg.features = feature_map
         for (task_name, feature_name), text_edit in self._text_widgets.items():
             task_cfg = self.config.tasks.get(task_name)
             if task_cfg is None:
@@ -625,6 +655,19 @@ class FeaturePanel(QWidget):
             if isinstance(value, bool):
                 value = 0
             spin.setValue(self._normalize_int_feature_value(value))
+        for (task_name, feature_name), spin in self._float_widgets.items():
+            task_cfg = self.config.tasks.get(task_name)
+            if task_cfg is None:
+                continue
+            feature_map = task_cfg.features or {}
+            value = feature_map.get(feature_name, 0.0)
+            if isinstance(value, bool):
+                value = 0.0
+            try:
+                parsed = float(value)
+            except Exception:
+                parsed = 0.0
+            spin.setValue(max(0.0, min(1.0, parsed)))
         for (task_name, feature_name), text_edit in self._text_widgets.items():
             task_cfg = self.config.tasks.get(task_name)
             if task_cfg is None:

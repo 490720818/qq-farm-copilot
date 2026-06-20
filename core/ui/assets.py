@@ -62,6 +62,7 @@ BTN_SHARE_RED_POINT = Button(area={'qq': (445, 731, 462, 748), 'wechat': (445, 7
 BTN_SHARE_YELLOW = Button(area={'qq': (139, 733, 190, 760), 'wechat': (139, 733, 190, 760)}, color={'qq': (223, 185, 102), 'wechat': (223, 185, 102)}, button={'qq': (139, 733, 190, 760), 'wechat': (139, 733, 190, 760)}, file={'qq': 'templates/qq/btn/btn_share_yellow.png', 'wechat': 'templates/qq/btn/btn_share_yellow.png'}, name='btn_share_yellow')
 BTN_SHOP_BUY_CHECK = Button(area={'qq': (247, 268, 293, 291), 'wechat': (247, 268, 293, 292)}, color={'qq': (228, 190, 171), 'wechat': (233, 200, 183)}, button={'qq': (247, 268, 293, 291), 'wechat': (247, 268, 293, 292)}, file={'qq': 'templates/qq/btn/btn_shop_buy_check.png', 'wechat': 'templates/wechat/btn/btn_shop_buy_check.png'}, name='btn_shop_buy_check')
 BTN_SHOP_BUY_CONFIRM = Button(area={'qq': (246, 622, 295, 648), 'wechat': (246, 622, 295, 648)}, color={'qq': (189, 200, 104), 'wechat': (189, 200, 104)}, button={'qq': (246, 622, 295, 648), 'wechat': (246, 622, 295, 648)}, file={'qq': 'templates/qq/btn/btn_shop_buy_confirm.png', 'wechat': 'templates/qq/btn/btn_shop_buy_confirm.png'}, name='btn_shop_buy_confirm')
+BTN_SPECIAL_WAREHOUSE = Button(area={'qq': (162, 128, 253, 153), 'wechat': (162, 128, 253, 153)}, color={'qq': (205, 158, 127), 'wechat': (205, 158, 127)}, button={'qq': (162, 128, 253, 153), 'wechat': (162, 128, 253, 153)}, file={'qq': 'templates/qq/btn/btn_special_warehouse.png', 'wechat': 'templates/qq/btn/btn_special_warehouse.png'}, name='btn_special_warehouse')
 BTN_STEAL = Button(area={'qq': (248, 692, 284, 720), 'wechat': (248, 692, 284, 720)}, color={'qq': (187, 147, 123), 'wechat': (187, 147, 123)}, button={'qq': (248, 692, 284, 720), 'wechat': (248, 692, 284, 720)}, file={'qq': 'templates/qq/btn/btn_steal.png', 'wechat': 'templates/qq/btn/btn_steal.png'}, name='btn_steal')
 BTN_STEAL_SIGN = Button(area={'qq': (124, 799, 154, 919), 'wechat': (124, 799, 154, 919)}, color={'qq': (224, 222, 164), 'wechat': (224, 222, 164)}, button={'qq': (124, 799, 154, 919), 'wechat': (124, 799, 154, 919)}, file={'qq': 'templates/qq/btn/btn_steal_sign.png', 'wechat': 'templates/qq/btn/btn_steal_sign.png'}, name='btn_steal_sign')
 BTN_STEAL_SINGLE = Button(area={'qq': (332, 493, 356, 518), 'wechat': (332, 493, 356, 518)}, color={'qq': (198, 185, 114), 'wechat': (198, 185, 114)}, button={'qq': (332, 493, 356, 518), 'wechat': (332, 493, 356, 518)}, file={'qq': 'templates/qq/btn/btn_steal_single.png', 'wechat': 'templates/qq/btn/btn_steal_single.png'}, name='btn_steal_single')
@@ -182,6 +183,7 @@ ASSET_NAME_TO_CONST = {
     'btn_share_yellow': BTN_SHARE_YELLOW,
     'btn_shop_buy_check': BTN_SHOP_BUY_CHECK,
     'btn_shop_buy_confirm': BTN_SHOP_BUY_CONFIRM,
+    'btn_special_warehouse': BTN_SPECIAL_WAREHOUSE,
     'btn_steal': BTN_STEAL,
     'btn_steal_sign': BTN_STEAL_SIGN,
     'btn_steal_single': BTN_STEAL_SINGLE,

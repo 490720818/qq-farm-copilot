@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -138,7 +139,20 @@ class TaskGrass(TaskBase):
             consecutive_fail_count = 0
             logger.info('自动种草: 识别到草图标 | score={:.3f}', score)
 
-            # 5. 拖拽种草到所有地块
+            # 5. 按配置概率决定是否跳过当前好友（0 不跳过，1 全部跳过无意义）
+            skip_probability = max(0.0, min(1.0, float(self.task.grass.feature.skip_probability)))
+            if 0.0 < skip_probability and random.random() < skip_probability:
+                logger.info(
+                    '自动种草: 随机跳过当前好友 | probability={:.2f}',
+                    skip_probability,
+                )
+                self._close_grass_popup()
+                if not self._goto_next_friend():
+                    logger.info('自动种草: 切换下一位好友失败，结束')
+                    break
+                continue
+
+            # 6. 拖拽种草到所有地块
             self._drag_grass_to_lands(grass_point, land_cells)
 
             # 关闭弹窗/清空状态，准备切换下一位好友
