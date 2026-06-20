@@ -435,7 +435,7 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
     def _run_actions_before_ocr_cell(self) -> None:
         """点击地块前先做一键收获与务农，减少弹窗噪声。"""
         self._run_feature_harvest()
-        self._run_feature_maintain_actions(enable_farming=True)
+        # self._run_feature_maintain_actions(enable_farming=True)
 
     def _resolve_scan_columns(self, cells: list[LandCell], *, from_side: str, column_count: int) -> list[int]:
         """根据当前网格确定本轮应扫描的物理列（排除前确定，避免补列）。"""
@@ -454,6 +454,7 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
         for attempt in range(max_attempts):
             x, y = int(cell.center[0]), int(cell.center[1])
             self.ui.device.click_point(x, y, desc=f'序号 {cell.label}')
+            self.ui.device.sleep(0.3)
 
             suffix_location: tuple[int, int] | None = None
             while 1:
@@ -795,8 +796,8 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
 
     @staticmethod
     def _extract_land_level(text: str) -> str:
-        """从中文 land_level 文本解析配置 level 值。"""
-        raw = str(text or '').strip().replace(' ', '')
+        """从中文 land_level 文本解析配置 level 值（过滤常见前缀干扰）。"""
+        raw = str(text or '').strip().replace(' ', '').replace('快', '')
         if not raw:
             return ''
         match = LAND_SCAN_LEVEL_PATTERN.search(raw)
