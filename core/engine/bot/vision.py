@@ -79,6 +79,7 @@ class BotVisionMixin:
             ActionType.HARVEST: 'harvest',
             ActionType.PLANT: 'plant',
             ActionType.FARMING: 'farming',
+            ActionType.FERTILIZE: 'fertilize',
             ActionType.STEAL: 'steal',
             ActionType.SELL: 'sell',
         }

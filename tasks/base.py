@@ -218,14 +218,27 @@ class TaskBase:
         cols: int = 6,
         start_anchor: str = 'right',
         log_prefix: str = '土地流程',
+        static: bool = True,
+        anchor_span: tuple[int, int] | None = None,
     ) -> list['LandCell']:
-        """收集当前画面的地块网格。"""
+        """收集当前画面的地块网格。
+
+        Args:
+            static: 是否仅在按钮预设区域附近检索。土地巡查等会滑动土地视图的流程，
+                应传入 False 以全图检索可滑动的左右锚点。
+            anchor_span: 左右锚点之间的像素间距 (dx, dy)。仅识别到单侧锚点时，
+                用此间距推断另一侧位置；传 None 时使用基准间距。
+        """
         from core.ui.assets import BTN_LAND_LEFT, BTN_LAND_RIGHT
         from utils.land_grid import get_lands_from_land_anchor
 
         self.ui.device.screenshot()
-        land_right_anchor = self.ui.appear_location(BTN_LAND_RIGHT, offset=(-30, -30, 160, 30), threshold=0.9)
-        land_left_anchor = self.ui.appear_location(BTN_LAND_LEFT, offset=(-160, -30, 30, 30), threshold=0.9)
+        land_right_anchor = self.ui.appear_location(
+            BTN_LAND_RIGHT, offset=(-30, -30, 160, 30), threshold=0.9, static=static
+        )
+        land_left_anchor = self.ui.appear_location(
+            BTN_LAND_LEFT, offset=(-160, -30, 30, 30), threshold=0.9, static=static
+        )
         if land_right_anchor is None and land_left_anchor is None:
             logger.warning('{}: 未识别到地块锚点，跳过本轮', log_prefix)
             return []
@@ -236,6 +249,7 @@ class TaskBase:
             rows=int(rows),
             cols=int(cols),
             start_anchor=str(start_anchor),
+            anchor_span=anchor_span,
         )
         logger.info(
             '{}: 网格识别 | 右锚点={} 左锚点={} 地块总计={}',

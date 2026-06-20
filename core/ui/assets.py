@@ -104,6 +104,7 @@ MAIN_GOTO_TASK = Button(area={'qq': (34, 782, 64, 812), 'wechat': (34, 782, 64, 
 MAIN_GOTO_WAREHOUSE = Button(area={'qq': (31, 905, 70, 924), 'wechat': (31, 905, 70, 924)}, color={'qq': (205, 159, 127), 'wechat': (205, 159, 127)}, button={'qq': (31, 905, 70, 924), 'wechat': (31, 905, 70, 924)}, file={'qq': 'templates/qq/ui/main_goto_warehouse.png', 'wechat': 'templates/qq/ui/main_goto_warehouse.png'}, name='main_goto_warehouse')
 MAIN_GOTO_WIKI = Button(area={'qq': (281, 904, 320, 923), 'wechat': (281, 904, 320, 923)}, color={'qq': (216, 180, 151), 'wechat': (216, 180, 151)}, button={'qq': (281, 904, 320, 923), 'wechat': (281, 904, 320, 923)}, file={'qq': 'templates/qq/ui/main_goto_wiki.png', 'wechat': 'templates/qq/ui/main_goto_wiki.png'}, name='main_goto_wiki')
 MALL_CHECK = Button(area={'qq': (117, 83, 174, 112), 'wechat': (117, 83, 174, 112)}, color={'qq': (193, 156, 137), 'wechat': (193, 156, 137)}, button={'qq': (117, 83, 174, 112), 'wechat': (117, 83, 174, 112)}, file={'qq': 'templates/qq/ui/mall_check.png', 'wechat': 'templates/qq/ui/mall_check.png'}, name='mall_check')
+MALL_CHECK_2 = Button(area={'qq': (111, 78, 179, 113), 'wechat': (111, 78, 179, 113)}, color={'qq': (223, 189, 173), 'wechat': (223, 189, 173)}, button={'qq': (111, 78, 179, 113), 'wechat': (111, 78, 179, 113)}, file={'qq': 'templates/qq/ui/mall_check_2.png', 'wechat': 'templates/qq/ui/mall_check_2.png'}, name='mall_check_2')
 MALL_GOTO_MAIN = Button(area={'qq': (44, 93, 82, 122), 'wechat': (44, 93, 82, 122)}, color={'qq': (230, 187, 117), 'wechat': (230, 187, 117)}, button={'qq': (44, 93, 82, 122), 'wechat': (44, 93, 82, 122)}, file={'qq': 'templates/qq/ui/mall_goto_main.png', 'wechat': 'templates/qq/ui/mall_goto_main.png'}, name='mall_goto_main')
 MENU_CHECK = Button(area={'qq': (31, 300, 51, 319), 'wechat': (31, 300, 51, 319)}, color={'qq': (244, 210, 136), 'wechat': (244, 210, 136)}, button={'qq': (31, 300, 51, 319), 'wechat': (31, 300, 51, 319)}, file={'qq': 'templates/qq/ui/menu_check.png', 'wechat': 'templates/qq/ui/menu_check.png'}, name='menu_check')
 MENU_GOTO_MAIL = Button(area={'qq': (30, 486, 44, 505), 'wechat': (30, 486, 44, 505)}, color={'qq': (237, 206, 137), 'wechat': (237, 206, 137)}, button={'qq': (30, 486, 44, 505), 'wechat': (30, 486, 44, 505)}, file={'qq': 'templates/qq/ui/menu_goto_mail.png', 'wechat': 'templates/qq/ui/menu_goto_mail.png'}, name='menu_goto_mail')  # 邮件
@@ -224,6 +225,7 @@ ASSET_NAME_TO_CONST = {
     'main_goto_warehouse': MAIN_GOTO_WAREHOUSE,
     'main_goto_wiki': MAIN_GOTO_WIKI,
     'mall_check': MALL_CHECK,
+    'mall_check_2': MALL_CHECK_2,
     'mall_goto_main': MALL_GOTO_MAIN,
     'menu_check': MENU_CHECK,
     'menu_goto_mail': MENU_GOTO_MAIL,

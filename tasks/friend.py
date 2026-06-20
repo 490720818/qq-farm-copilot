@@ -731,7 +731,7 @@ class TaskFriend(TaskBase):
         if image is None:
             return None
         h, w = image.shape[:2]
-        return (int(w * 0.1), int(h * 0.4),int(w * 0.8), int(h * 0.65))
+        return (int(w * 0.1), int(h * 0.4), int(w * 0.8), int(h * 0.65))
 
     def _detect_single_crop_icons(
         self,

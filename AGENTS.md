@@ -167,7 +167,7 @@
 ## 4. 业务任务逻辑（当前实现）
 
 - `main`
-: 主流程任务，按功能开关顺序执行收获维护、扩建、播种、升级等动作。
+: 主流程任务，按功能开关顺序执行收获维护、扩建、播种、施肥、升级等动作。
 
 - `main` 在自动播种前会先尝试等级 OCR（可由 `config.planting.level_ocr_enabled` 关闭）。
 
@@ -176,8 +176,14 @@
 2. `farming`
 3. `expand`
 4. `plant`（前置等级 OCR）
-5. `fertilize`（当前由策略强制关闭）
+5. `fertilize`
 6. `upgrade`
+
+- `main.features` 施肥相关字段：
+  - `auto_fertilize: bool`（默认 `false`）
+  - `maturity_threshold_seconds: int`（默认 `3600`，仅对成熟倒计时小于该阈值的地块施肥）
+  - `auto_buy_fertilizer: bool`（默认 `false`，肥料不足时自动进入商店购买）
+  - `fertilizer_purchase_threshold_seconds: int`（默认 `108000`，库存低于该阈值时触发购买）
 
 - `friend`
 : 独立好友任务，复用 `TaskFriend`；支持 `features.blacklist: list[str]`、`features.steal_stats: bool`、`features.help_only_guard_dog: bool`，以及 `steal/help` 各自的 `enabled_time_range` 与 `limit_count` 配置（功能时段与次数限制在任务调度时段内生效）。

@@ -37,10 +37,13 @@ LAND_SCAN_FRAME_WIDTH = 540
 LAND_SCAN_FRAME_HEIGHT = 960
 # 画面物理列总数（1,2,3,4,4,4,3,2,1）。
 LAND_SCAN_PHYSICAL_COLS = 9
-# 左滑阶段按“右到左”扫描的物理列数量。
-LAND_SCAN_LEFT_STAGE_COL_COUNT = 5
-# 右滑阶段按“左到右”扫描的物理列数量。
-LAND_SCAN_RIGHT_STAGE_COL_COUNT = 4
+# 右半阶段扫描的物理列数量（右侧 5 列，从右往左）。
+LAND_SCAN_RIGHT_STAGE_COL_COUNT = 5
+# 左半阶段扫描的物理列数量（左侧 4 列，从左往右）。
+LAND_SCAN_LEFT_STAGE_COL_COUNT = 4
+# 边缘点击前进行横向滑动的 x 阈值。
+LAND_SCAN_EDGE_SWIPE_LEFT_THRESHOLD = 160
+LAND_SCAN_EDGE_SWIPE_RIGHT_THRESHOLD = 330
 # 成熟时间 OCR 识别大区域：相对 BTN_CROP_MATURITY_TIME_SUFFIX 中心 (dx1, dy1, dx2, dy2)。
 LAND_SCAN_OCR_REGION_OFFSET = (-200, -50, 100, 50)
 # 成熟时间 OCR 二次筛选窗口：相对 BTN_CROP_MATURITY_TIME_SUFFIX 中心，x 起点偏移（像素）。
@@ -88,6 +91,10 @@ LAND_SCAN_UPGRADE_NON_EMPTY_REGION_OFFSET = (0, -50, 130, 50)
 LAND_SCAN_ANCHOR_STABLE_SECONDS = 0.5
 # Timer reached 附加计数门槛（reached_count > count）。
 LAND_SCAN_ANCHOR_STABLE_REQUIRED_HITS = 3
+# 滑动后等待锚点稳定的最长超时（秒）。
+LAND_SCAN_ANCHOR_STABLE_TIMEOUT_SECONDS = 5.0
+# 连续两次横向滑动之间的停顿（秒），等待画面惯性消散。
+LAND_SCAN_SWIPE_STEP_DELAY = 0.2
 
 
 class TaskLandScan(TaskMainActionsMixin, TaskBase):
@@ -118,47 +125,96 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
         self.align_view_by_background_tree(log_prefix='地块巡查')
         right_swipe_times = int(self.config.planting.land_swipe_right_times)
         left_swipe_times = int(self.config.planting.land_swipe_left_times)
+        logger.info('地块巡查: 滑动次数 | 右滑={} 左滑={}', right_swipe_times, left_swipe_times)
+        if left_swipe_times <= 0:
+            logger.warning('地块巡查: 左滑次数为 0，将只扫描右半部分地块')
         # self.ui.device.click_button(GOTO_MAIN)
 
+        # 在回正状态下同时识别左右锚点，用真实间距推断侧滑后的对侧锚点。
+        self.ui.device.screenshot()
+        full_right_anchor = self.ui.appear_location(
+            BTN_LAND_RIGHT, offset=(-30, -30, 160, 30), threshold=0.9, static=False
+        )
+        full_left_anchor = self.ui.appear_location(
+            BTN_LAND_LEFT, offset=(-160, -30, 30, 30), threshold=0.9, static=False
+        )
+        anchor_span: tuple[int, int] | None = None
+        if full_right_anchor is not None and full_left_anchor is not None:
+            anchor_span = (
+                int(full_left_anchor[0] - full_right_anchor[0]),
+                int(full_left_anchor[1] - full_right_anchor[1]),
+            )
+            logger.info('地块巡查: 实测左右锚点间距={}', anchor_span)
+
         try:
-            # 右滑
-            for _ in range(right_swipe_times):
+            # 右滑：手指从 P1 滑向 P2，画面向右侧移动，露出右侧地块
+            logger.info('地块巡查: 开始右滑')
+            for i in range(right_swipe_times):
                 self.ui.device.swipe(LAND_SCAN_SWIPE_H_P1, LAND_SCAN_SWIPE_H_P2, speed=30)
-            self._wait_anchor_position_stable(anchor_button=BTN_LAND_RIGHT)
+                if i < right_swipe_times - 1:
+                    self.ui.device.sleep(float(LAND_SCAN_SWIPE_STEP_DELAY))
+            if not self._wait_anchor_position_stable(anchor_button=BTN_LAND_RIGHT):
+                logger.warning('地块巡查: 右滑后右锚点未稳定，继续尝试识别网格')
+            logger.info(
+                '地块巡查: 右滑完成，开始扫描右侧 {} 列（物理列 1~{}，从右往左）',
+                LAND_SCAN_RIGHT_STAGE_COL_COUNT,
+                LAND_SCAN_RIGHT_STAGE_COL_COUNT,
+            )
 
             cells_after_left = self.collect_land_cells(
-                rows=LAND_SCAN_ROWS, cols=LAND_SCAN_COLS, start_anchor='right', log_prefix='地块巡查'
+                rows=LAND_SCAN_ROWS,
+                cols=LAND_SCAN_COLS,
+                start_anchor='right',
+                log_prefix='地块巡查',
+                static=False,
+                anchor_span=anchor_span,
             )
             if not cells_after_left:
                 logger.warning('地块巡查: 未识别到地块网格，跳过任务')
                 return self.fail('未识别到地块网格')
             cells_after_left = self._exclude_expand_brand_related_cells(cells_after_left)
             self._scan_cells_by_physical_columns(
-                cells_after_left, from_side='right', column_count=LAND_SCAN_LEFT_STAGE_COL_COUNT
+                cells_after_left,
+                from_side='right',
+                column_count=LAND_SCAN_RIGHT_STAGE_COL_COUNT,
+                scan_direction='rtl',
             )
 
-            # 左滑
-            for _ in range(left_swipe_times):
+            # 左滑：手指从 P2 滑向 P1，画面向左侧移动，露出左侧地块
+            logger.info('地块巡查: 开始左滑')
+            for i in range(left_swipe_times):
                 self.ui.device.swipe(LAND_SCAN_SWIPE_H_P2, LAND_SCAN_SWIPE_H_P1, speed=30)
-            self._wait_anchor_position_stable(anchor_button=BTN_LAND_LEFT)
+                if i < left_swipe_times - 1:
+                    self.ui.device.sleep(float(LAND_SCAN_SWIPE_STEP_DELAY))
+            if not self._wait_anchor_position_stable(anchor_button=BTN_LAND_LEFT):
+                logger.warning('地块巡查: 左滑后左锚点未稳定，继续尝试识别网格')
+            logger.info(
+                '地块巡查: 左滑完成，开始扫描左侧 {} 列（物理列 {}~{}，从左往右）',
+                LAND_SCAN_LEFT_STAGE_COL_COUNT,
+                LAND_SCAN_RIGHT_STAGE_COL_COUNT + 1,
+                LAND_SCAN_PHYSICAL_COLS,
+            )
 
             cells_after_right = self.collect_land_cells(
-                rows=LAND_SCAN_ROWS, cols=LAND_SCAN_COLS, start_anchor='right', log_prefix='地块巡查'
+                rows=LAND_SCAN_ROWS,
+                cols=LAND_SCAN_COLS,
+                start_anchor='right',
+                log_prefix='地块巡查',
+                static=False,
+                anchor_span=anchor_span,
             )
             if not cells_after_right:
                 logger.warning('地块巡查: 未识别到地块网格，跳过任务')
                 return self.fail('未识别到地块网格')
-            right_scan_cols = self._resolve_scan_columns(
-                cells_after_right,
-                from_side='left',
-                column_count=LAND_SCAN_RIGHT_STAGE_COL_COUNT,
-            )
             cells_after_right = self._exclude_expand_brand_related_cells(cells_after_right)
+            # 左侧 4 列按物理列 9,8,7,6（从左往右）扫描
+            left_scan_cols = list(range(LAND_SCAN_PHYSICAL_COLS, LAND_SCAN_RIGHT_STAGE_COL_COUNT, -1))
             self._scan_cells_by_physical_columns(
                 cells_after_right,
-                from_side='left',
-                column_count=LAND_SCAN_RIGHT_STAGE_COL_COUNT,
-                fixed_cols=right_scan_cols,
+                from_side='right',
+                column_count=LAND_SCAN_LEFT_STAGE_COL_COUNT,
+                fixed_cols=left_scan_cols,
+                scan_direction='ltr',
             )
         finally:
             self.align_view_by_background_tree(log_prefix='地块巡查')
@@ -222,26 +278,51 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
             pending_upgrade,
         )
 
-    def _wait_anchor_position_stable(self, *, anchor_button) -> bool:
-        """等待锚点位置稳定：同坐标保持 0.5s 且 reached 计数超过阈值后继续。"""
+    def _wait_anchor_position_stable(self, *, anchor_button, timeout_seconds: float | None = None) -> bool:
+        """等待目标土地锚点位置稳定；超时或检测到对侧锚点时返回失败。"""
         stable_seconds = float(LAND_SCAN_ANCHOR_STABLE_SECONDS)
         required_hits = int(LAND_SCAN_ANCHOR_STABLE_REQUIRED_HITS)
         stable_timer = Timer(stable_seconds, count=required_hits)
         last_anchor: tuple[int, int] | None = None
+        timeout = (
+            float(timeout_seconds) if timeout_seconds is not None else float(LAND_SCAN_ANCHOR_STABLE_TIMEOUT_SECONDS)
+        )
+        deadline = Timer(timeout).start()
 
-        land_offset = (-30, -30, 160, 30)
+        target_offset = (-30, -30, 160, 30)
+        opposite_button = BTN_LAND_LEFT
+        opposite_offset = (-160, -30, 30, 30)
         if anchor_button == BTN_LAND_LEFT:
-            land_offset = (-160, -30, 30, 30)
+            target_offset = (-160, -30, 30, 30)
+            opposite_button = BTN_LAND_RIGHT
+            opposite_offset = (-30, -30, 160, 30)
+
         while 1:
             self.ui.device.screenshot()
-            location = self.ui.appear_location(anchor_button, offset=land_offset, threshold=0.9)
+            location = self.ui.appear_location(anchor_button, offset=target_offset, threshold=0.9, static=False)
             current_anchor: tuple[int, int] | None = None
             if location is not None:
                 current_anchor = (int(location[0]), int(location[1]))
 
             if current_anchor is None:
+                opposite = self.ui.appear_location(opposite_button, offset=opposite_offset, threshold=0.9, static=False)
+                if opposite is not None:
+                    logger.warning(
+                        '地块巡查: 期望锚点未命中但对侧锚点可见，疑似滑过头 | 期望={} 对侧={}',
+                        anchor_button.name,
+                        opposite_button.name,
+                    )
+                    return False
                 last_anchor = None
                 stable_timer.clear()
+                if deadline.reached():
+                    logger.warning(
+                        '地块巡查: 等待锚点稳定超时 | 锚点={} timeout={}s',
+                        anchor_button.name,
+                        timeout,
+                    )
+                    return False
+                self.ui.device.sleep(0.1)
                 continue
 
             if current_anchor != last_anchor:
@@ -250,10 +331,29 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
                     stable_timer.reset()
                 else:
                     stable_timer.start()
+                self.ui.device.sleep(0.05)
                 continue
 
             if stable_timer.reached():
+                logger.info(
+                    '地块巡查: 锚点已稳定 | 锚点={} 位置={}',
+                    anchor_button.name,
+                    current_anchor,
+                )
                 return True
+
+    def _swipe_horizontal_interval(self, direction: str, interval: int) -> None:
+        """按指定方向和 x 间隔执行横向滑动（direction='left' 为左滑，'right' 为右滑）。"""
+        base_y = LAND_SCAN_SWIPE_H_P1[1]
+        if direction == 'left':
+            start = (LAND_SCAN_SWIPE_H_P1[0], base_y)
+            end = (LAND_SCAN_SWIPE_H_P1[0] - interval, base_y)
+        else:
+            start = (LAND_SCAN_SWIPE_H_P2[0], base_y)
+            end = (LAND_SCAN_SWIPE_H_P2[0] + interval, base_y)
+        logger.debug('地块巡查: 边缘滑动 | 方向={} 起点={} 终点={}', direction, start, end)
+        self.ui.device.swipe(start, end, speed=30)
+        self.ui.device.sleep(float(LAND_SCAN_SWIPE_STEP_DELAY))
 
     def _scan_cells_by_physical_columns(
         self,
@@ -262,25 +362,69 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
         from_side: str,
         column_count: int,
         fixed_cols: list[int] | None = None,
+        scan_direction: str = 'rtl',
     ):
-        """按画面物理列扫描地块（列内顺序：从上到下）。"""
-        col_map: dict[int, list[LandCell]] = {}
-        for cell in cells:
-            physical_col = self._physical_col_rtl(cell)
-            col_map.setdefault(physical_col, []).append(cell)
+        """按画面物理列扫描地块（列内顺序：从上到下）。
 
+        scan_direction='rtl' 表示从右往左扫描，x<160 时右滑修正；
+        scan_direction='ltr' 表示从左往右扫描，x>330 时左滑修正。
+        """
         if fixed_cols is not None:
             scan_cols = [int(col) for col in fixed_cols]
         else:
             scan_cols = self._resolve_scan_columns(cells, from_side=from_side, column_count=column_count)
 
         logger.info('地块巡查: 物理列={}', scan_cols)
+
+        x_interval = abs(LAND_SCAN_SWIPE_H_P1[0] - LAND_SCAN_SWIPE_H_P2[0])
+        view_offset_x = 0
+
+        col_map: dict[int, list[LandCell]] = {}
+        for cell in cells:
+            physical_col = self._physical_col_rtl(cell)
+            col_map.setdefault(physical_col, []).append(cell)
+
         for physical_col in scan_cols:
-            col_cells = list(col_map.get(physical_col, []))
+            col_cells = list(col_map.get(int(physical_col), []))
             col_cells.sort(key=lambda cell: (int(cell.center[1]), int(cell.center[0])))
             for cell in col_cells:
+                final_x = cell.center[0] + view_offset_x
+                final_y = cell.center[1]
+                if scan_direction == 'rtl' and final_x < LAND_SCAN_EDGE_SWIPE_LEFT_THRESHOLD:
+                    self._swipe_horizontal_interval('right', x_interval)
+                    view_offset_x += x_interval
+                    old_x = final_x
+                    final_x = cell.center[0] + view_offset_x
+                    logger.info(
+                        '地块巡查: 右滑修正 | 列={} 序号={} 原x={} 新x={}',
+                        physical_col,
+                        cell.label,
+                        old_x,
+                        final_x,
+                    )
+                elif scan_direction == 'ltr' and final_x > LAND_SCAN_EDGE_SWIPE_RIGHT_THRESHOLD:
+                    self._swipe_horizontal_interval('left', x_interval)
+                    view_offset_x -= x_interval
+                    old_x = final_x
+                    final_x = cell.center[0] + view_offset_x
+                    logger.info(
+                        '地块巡查: 左滑修正 | 列={} 序号={} 原x={} 新x={}',
+                        physical_col,
+                        cell.label,
+                        old_x,
+                        final_x,
+                    )
+
+                calibrated_cell = LandCell(
+                    order=cell.order,
+                    row=cell.row,
+                    col=cell.col,
+                    label=cell.label,
+                    center=(int(final_x), int(final_y)),
+                    vertices=cell.vertices,
+                )
                 self._run_actions_before_ocr_cell()
-                self._click_and_ocr_cell(cell=cell)
+                self._click_and_ocr_cell(cell=calibrated_cell)
                 self.ui.device.click_button(GOTO_MAIN)
                 self.ui.device.sleep(0.2)
                 self.ui.device.stuck_record_clear()
@@ -304,56 +448,58 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
             return list(reversed(rtl_cols))[: max(0, int(column_count))]
         return rtl_cols[: max(0, int(column_count))]
 
-    def _click_and_ocr_cell(self, *, cell: LandCell):
-        """点击单个地块并采集 OCR 文本。"""
-        x, y = int(cell.center[0]), int(cell.center[1])
-        self.ui.device.click_point(x, y, desc=f'序号 {cell.label}')
+    def _click_and_ocr_cell(self, *, cell: LandCell, max_retries: int = 1):
+        """点击单个地块并采集 OCR 文本；成熟时间 OCR 失败时可重试一次。"""
+        max_attempts = max(1, int(max_retries) + 1)
+        for attempt in range(max_attempts):
+            x, y = int(cell.center[0]), int(cell.center[1])
+            self.ui.device.click_point(x, y, desc=f'序号 {cell.label}')
 
-        while 1:
-            self.ui.device.screenshot()
-            # 正常弹窗
-            if self.ui.appear(BTN_CROP_REMOVAL, offset=30, static=False) and self.ui.appear(
-                BTN_CROP_MATURITY_TIME_SUFFIX, offset=30, threshold=0.65, static=False
-            ):
-                break
-            # 空土地弹窗
-            if not self.ui.appear(BTN_CROP_REMOVAL, offset=30, static=False) and self.ui.appear(
-                BTN_LAND_POP_EMPTY, offset=(-160, -180, 280, 280), threshold=0.65
-            ):
-                removal_location = self.ui.appear_location(
+            suffix_location: tuple[int, int] | None = None
+            while 1:
+                self.ui.device.screenshot()
+                removal_location = self.ui.appear_location(BTN_CROP_REMOVAL, offset=30, static=False)
+                # 正常弹窗
+                if removal_location is not None:
+                    suffix_location = self.ui.appear_location(
+                        BTN_CROP_MATURITY_TIME_SUFFIX, offset=30, threshold=0.65, static=False
+                    )
+                    if suffix_location is not None:
+                        break
+                # 空土地弹窗
+                empty_location = self.ui.appear_location(
                     BTN_LAND_POP_EMPTY, offset=(-160, -180, 280, 280), threshold=0.65
                 )
-                need_upgrade = self._detect_need_upgrade(anchor=removal_location, empty_plot=True)
-                need_planting = True
-                roi = self._build_land_level_region(removal_location)
-                level_items = self.ocr_tool.detect(self.ui.device.image, region=roi, scale=1.2, alpha=1.1, beta=0.0)
-                level_text = self._merge_ocr_items_text(level_items)
-                level = self._extract_land_level(level_text)
-                logger.info(
-                    '地块巡查: 空地等级OCR | 序号={} text={} 等级={}',
-                    cell.label,
-                    self._short_text(level_text),
-                    self._level_label(level),
-                )
-                update_level = level or None
-                if not level:
-                    logger.warning(
-                        '地块巡查: 未识别到等级，更新其他字段 | 序号={} 等级={} 需要升级={} 需要播种={}',
+                if empty_location is not None and removal_location is None:
+                    removal_location = empty_location
+                    logger.debug(
+                        '地块巡查: 弹窗锚点 | 序号={} 类型=empty 锚点={} 计算中心={}',
                         cell.label,
-                        level_text,
-                        need_upgrade,
-                        need_planting,
+                        removal_location,
+                        cell.center,
                     )
-                updated = self._update_plot_fields(
-                    plot_id=cell.label,
-                    level=update_level,
-                    countdown='',
-                    countdown_sync_time='',
-                    need_upgrade=need_upgrade,
-                    need_planting=need_planting,
-                )
-                if updated:
-                    self._save_plot_update(
+                    need_upgrade = self._detect_need_upgrade(anchor=removal_location, empty_plot=True)
+                    need_planting = True
+                    roi = self._build_land_level_region(removal_location)
+                    level_items = self.ocr_tool.detect(self.ui.device.image, region=roi, scale=1.2, alpha=1.1, beta=0.0)
+                    level_text = self._merge_ocr_items_text(level_items)
+                    level = self._extract_land_level(level_text)
+                    logger.info(
+                        '地块巡查: 空地等级OCR | 序号={} text={} 等级={}',
+                        cell.label,
+                        self._short_text(level_text),
+                        self._level_label(level),
+                    )
+                    update_level = level or None
+                    if not level:
+                        logger.warning(
+                            '地块巡查: 未识别到等级，更新其他字段 | 序号={} 等级={} 需要升级={} 需要播种={}',
+                            cell.label,
+                            level_text,
+                            need_upgrade,
+                            need_planting,
+                        )
+                    updated = self._update_plot_fields(
                         plot_id=cell.label,
                         level=update_level,
                         countdown='',
@@ -361,53 +507,89 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
                         need_upgrade=need_upgrade,
                         need_planting=need_planting,
                     )
-                return
-            self.ui.device.sleep(0.2)
+                    if updated:
+                        self._save_plot_update(
+                            plot_id=cell.label,
+                            level=update_level,
+                            countdown='',
+                            countdown_sync_time='',
+                            need_upgrade=need_upgrade,
+                            need_planting=need_planting,
+                        )
+                    return
+                self.ui.device.sleep(0.2)
 
-        removal_location = self.ui.appear_location(
-            BTN_CROP_MATURITY_TIME_SUFFIX, offset=30, threshold=0.65, static=False
-        )
-        need_upgrade = self._detect_need_upgrade(anchor=removal_location, empty_plot=False)
-        need_planting = False
-        countdown: str | None = None
-        countdown_sync_time: str | None = None
-
-        if removal_location is None:
-            logger.warning('地块巡查: 未识别到成熟时间锚点，跳过 OCR | 序号={}', cell.label)
-        else:
-            roi = self._build_ocr_region(removal_location)
-            items = self.ocr_tool.detect(self.ui.device.image, region=roi, scale=1.2, alpha=1.1, beta=0.0)
-            text, score, tokens = self._pick_time_tokens_near_suffix(items=items, anchor=removal_location)
-            countdown = self._extract_maturity_time(text)
-            observed_at = datetime.now().replace(microsecond=0)
-            countdown_sync_time = observed_at.strftime('%Y-%m-%d %H:%M:%S') if countdown else ''
-            display_text = countdown or text
+            removal_location = suffix_location
             logger.debug(
-                '地块巡查: OCR筛选 | region={} pick_offset=({}, {}, {}, {}) tokens={} text={}',
-                roi,
-                LAND_SCAN_TIME_PICK_X1,
-                LAND_SCAN_TIME_PICK_Y1,
-                LAND_SCAN_TIME_PICK_X2,
-                LAND_SCAN_TIME_PICK_Y2,
-                tokens,
-                display_text or '<empty>',
+                '地块巡查: 弹窗锚点 | 序号={} 类型=planted 锚点={} 计算中心={}',
+                cell.label,
+                removal_location,
+                cell.center,
             )
-            logger.info(
-                '地块巡查: OCR | 序号={} text={} score={:.3f}', cell.label, self._short_text(display_text), score
-            )
+            need_upgrade = self._detect_need_upgrade(anchor=removal_location, empty_plot=False)
+            need_planting = False
+            countdown: str | None = None
+            countdown_sync_time: str | None = None
 
-        level, _, _ = self._detect_plotted_land_level_by_color(removal_location)
+            if removal_location is None:
+                logger.warning('地块巡查: 未识别到成熟时间锚点，跳过 OCR | 序号={}', cell.label)
+            else:
+                roi = self._build_ocr_region(removal_location)
+                items = self.ocr_tool.detect(self.ui.device.image, region=roi, scale=1.2, alpha=1.1, beta=0.0)
+                text, score, tokens = self._pick_time_tokens_near_suffix(items=items, anchor=removal_location)
+                countdown = self._extract_maturity_time(text)
+                observed_at = datetime.now().replace(microsecond=0)
+                countdown_sync_time = observed_at.strftime('%Y-%m-%d %H:%M:%S') if countdown else ''
+                display_text = countdown or text
+                logger.debug(
+                    '地块巡查: OCR筛选 | region={} pick_offset=({}, {}, {}, {}) tokens={} text={}',
+                    roi,
+                    LAND_SCAN_TIME_PICK_X1,
+                    LAND_SCAN_TIME_PICK_Y1,
+                    LAND_SCAN_TIME_PICK_X2,
+                    LAND_SCAN_TIME_PICK_Y2,
+                    tokens,
+                    display_text or '<empty>',
+                )
+                logger.info(
+                    '地块巡查: OCR | 序号={} text={} score={:.3f}', cell.label, self._short_text(display_text), score
+                )
 
-        updated = self._update_plot_fields(
-            plot_id=cell.label,
-            level=level or None,
-            countdown=countdown,
-            countdown_sync_time=countdown_sync_time,
-            need_upgrade=need_upgrade,
-            need_planting=need_planting,
-        )
-        if updated:
-            self._save_plot_update(
+            if countdown:
+                level, _, _ = self._detect_plotted_land_level_by_color(removal_location)
+                updated = self._update_plot_fields(
+                    plot_id=cell.label,
+                    level=level or None,
+                    countdown=countdown,
+                    countdown_sync_time=countdown_sync_time,
+                    need_upgrade=need_upgrade,
+                    need_planting=need_planting,
+                )
+                if updated:
+                    self._save_plot_update(
+                        plot_id=cell.label,
+                        level=level or None,
+                        countdown=countdown,
+                        countdown_sync_time=countdown_sync_time,
+                        need_upgrade=need_upgrade,
+                        need_planting=need_planting,
+                    )
+                return
+
+            if attempt < max_attempts - 1:
+                logger.warning(
+                    '地块巡查: 成熟时间 OCR 失败，将重试一次 | 序号={} attempt={} text={}',
+                    cell.label,
+                    attempt + 1,
+                    self._short_text(text),
+                )
+                self.ui.device.click_button(GOTO_MAIN)
+                self.ui.device.sleep(0.2)
+                continue
+
+            logger.warning('地块巡查: 成熟时间 OCR 重试后仍失败 | 序号={} text={}', cell.label, self._short_text(text))
+            level, _, _ = self._detect_plotted_land_level_by_color(removal_location)
+            updated = self._update_plot_fields(
                 plot_id=cell.label,
                 level=level or None,
                 countdown=countdown,
@@ -415,7 +597,16 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
                 need_upgrade=need_upgrade,
                 need_planting=need_planting,
             )
-        return
+            if updated:
+                self._save_plot_update(
+                    plot_id=cell.label,
+                    level=level or None,
+                    countdown=countdown,
+                    countdown_sync_time=countdown_sync_time,
+                    need_upgrade=need_upgrade,
+                    need_planting=need_planting,
+                )
+            return
 
     def _detect_need_upgrade(self, *, anchor: tuple[int, int] | None, empty_plot: bool) -> bool:
         """识别当前地块弹窗是否出现升级图标（GIF 多帧匹配）。"""
@@ -687,8 +878,8 @@ class TaskLandScan(TaskMainActionsMixin, TaskBase):
 
     @staticmethod
     def _extract_maturity_time(text: str) -> str:
-        """从 OCR 文本提取 HH:MM:SS。"""
-        raw = str(text or '').strip()
+        """从 OCR 文本提取 HH:MM:SS（兼容中文全角冒号）。"""
+        raw = str(text or '').strip().replace('：', ':')
         if not raw:
             return ''
         match = LAND_SCAN_MATURITY_TIME_PATTERN.search(raw)

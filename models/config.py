@@ -471,6 +471,18 @@ class PlantingConfig(ConfigModel):
     planting_stable_timeout_seconds: float = 3.0
     land_swipe_right_times: int = 4
     land_swipe_left_times: int = 6
+    # 真正播种新种子后，后续若干轮主任务跳过自动施肥的剩余轮数。
+    skip_fertilize_after_seed_rounds: int = 0
+
+    @field_validator('skip_fertilize_after_seed_rounds', mode='before')
+    @classmethod
+    def _normalize_skip_fertilize_after_seed_rounds(cls, value):
+        """规范化播种后跳过自动施肥轮数。"""
+        try:
+            rounds = int(value)
+        except Exception:
+            rounds = 0
+        return max(0, min(99, rounds))
 
     @field_validator('player_level', mode='before')
     @classmethod

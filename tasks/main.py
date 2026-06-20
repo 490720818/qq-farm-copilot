@@ -254,6 +254,10 @@ class TaskMain(
         self._expand_failed = False
         self._upgrade_failed = False
         self.shop_ocr = ShopItemOCR(ocr_tool=ocr_tool)
+        self.fertilizer_ocr = ShopItemOCR(
+            vocab=['普通化肥', '有机化肥', '化肥'],
+            ocr_tool=ocr_tool,
+        )
         self.seed_number_ocr = BgPatchNumberOCR(ocr_tool=ocr_tool)
         self.head_info_ocr = HeadInfoOCR(ocr_tool=ocr_tool)
 
@@ -278,13 +282,17 @@ class TaskMain(
         # 自动播种
         if features.auto_plant:
             self._sync_player_level_before_plant()
-            self._run_feature_plant()
+            plant_result = self._run_feature_plant()
+            if plant_result:
+                self._trigger_land_scan_after_plant()
 
-        # TODO 自动施肥
+        # 自动施肥
         if features.auto_fertilize:
-            self._run_feature_fertilize()
+            fertilize_result = self._run_feature_fertilize()
+            if fertilize_result:
+                self._trigger_timed_harvest_after_fertilize()
 
-        # TODO 自动升级
+        # 自动升级
         if features.auto_upgrade:
             self._run_feature_upgrade()
 

@@ -63,7 +63,9 @@ class UI(Handler):
         if isinstance(check, (list, tuple, set)):
             if not check:
                 return False
-            return all(
+            # list 表示多资源“任一命中即可”（OR），tuple/set 保留“同时命中”（AND）语义
+            op = any if isinstance(check, list) else all
+            return op(
                 self.appear(
                     btn,
                     offset=(30, 30),

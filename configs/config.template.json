@@ -32,7 +32,11 @@
         "auto_farming": true,
         "auto_expand": true,
         "auto_upgrade": true,
-        "auto_fertilize": false
+        "auto_fertilize": false,
+        "maturity_threshold_seconds": 3600,
+        "auto_buy_fertilizer": false,
+        "fertilizer_purchase_threshold_seconds": 108000,
+        "use_organic_fertilizer": false
       }
     },
     "friend": {
@@ -194,7 +198,8 @@
     "planting_stable_seconds": 0.5,
     "planting_stable_timeout_seconds": 3.0,
     "land_swipe_right_times": 4,
-    "land_swipe_left_times": 6
+    "land_swipe_left_times": 6,
+    "skip_fertilize_after_seed_rounds": 0
   },
   "land": {
     "plots": [],

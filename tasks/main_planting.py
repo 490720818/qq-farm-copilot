@@ -36,7 +36,7 @@ class TaskMainPlantingMixin(TaskMainBuySeedMixin):
     ui: 'UI'
 
     def _run_feature_plant(self) -> str | None:
-        """自动播种"""
+        """自动播种；仅在真正完成播种后返回动作描述。"""
         logger.info('自动播种: 开始')
         self.ui.ui_ensure(page_main)
 
@@ -50,7 +50,15 @@ class TaskMainPlantingMixin(TaskMainBuySeedMixin):
         #     logger.info('无需播种')
         #     return
 
-        self._plant_all(self.engine._resolve_crop_name())
+        planted_refs = self._plant_all(self.engine._resolve_crop_name())
+        if not planted_refs:
+            return None
+        self.config.planting.skip_fertilize_after_seed_rounds = 2
+        try:
+            self.config.save()
+        except Exception as exc:
+            logger.warning('自动播种: 保存跳过施肥轮数失败 | error={}', exc)
+        return '自动播种'
 
     @staticmethod
     def _get_icon_land_buttons() -> list[Button]:
@@ -588,12 +596,13 @@ class TaskMainPlantingMixin(TaskMainBuySeedMixin):
         return 'ready', land_coords, pending_plot_refs, detail_targets, seed_popup_land
 
     def _plant_all(self, crop_name: str, retry_round: int = 0) -> list[str]:
-        """执行整块农田播种流程。"""
+        """执行整块农田播种流程，返回本轮实际播种的地块序号列表。"""
 
         warehouse_first = bool(self.config.planting.warehouse_first)
         skip_event_crops = bool(self.config.planting.skip_event_crops)
         use_warehouse_first = warehouse_first and not skip_event_crops
         max_retry_round = 6
+        actually_planted_refs: list[str] = []
         if warehouse_first and skip_event_crops:
             logger.info('自动播种: 仓库优先与排除活动作物同时开启，按关闭仓库优先处理')
         if retry_round > max_retry_round:
@@ -602,7 +611,7 @@ class TaskMainPlantingMixin(TaskMainBuySeedMixin):
                 retry_round,
                 max_retry_round,
             )
-            return []
+            return actually_planted_refs
 
         seed_index: int | None = None
         if not use_warehouse_first:
@@ -694,8 +703,10 @@ class TaskMainPlantingMixin(TaskMainBuySeedMixin):
         remain_land_coords, _, _ = self._collect_pending_plant_land_coords(include_detail_targets=False)
         if detail_targets:
             planted_refs = self._resolve_planted_plot_refs_by_live_coords(detail_targets, remain_land_coords)
+            actually_planted_refs.extend(planted_refs)
             self.backfill_land_flag_false(planted_refs, 'need_planting', log_prefix='自动播种')
         elif pending_plot_refs:
+            actually_planted_refs.extend(str(ref) for ref in pending_plot_refs)
             self.backfill_land_flag_false(pending_plot_refs, 'need_planting', log_prefix='自动播种')
         if remain_land_coords:
             logger.info(
@@ -703,5 +714,5 @@ class TaskMainPlantingMixin(TaskMainBuySeedMixin):
                 len(remain_land_coords),
                 retry_round + 1,
             )
-            return self._plant_all(crop_name, retry_round=retry_round + 1)
-        return []
+            actually_planted_refs.extend(self._plant_all(crop_name, retry_round=retry_round + 1))
+        return actually_planted_refs

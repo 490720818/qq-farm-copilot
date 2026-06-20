@@ -19,7 +19,7 @@
 - [x] 一键收获 / 务农
 - [x] 自动购买种子
 - [x] 自动播种（不会支持四格，影响收益）
-- [ ] 自动施肥
+- [x] 自动施肥
 - [x] 自动扩建土地
 - [x] 自动升级土地
 - [x] 仓库批量出售
@@ -58,7 +58,7 @@
 
 当前内置任务（通过 `_run_task_*` 自动发现）：
 
-- `main`：农场主流程（收获维护、播种、扩建、升级）
+- `main`：农场主流程（收获维护、播种、施肥、扩建、升级）
 - `friend`：独立好友任务（支持 `features.blacklist`、`features.steal_stats`、`features.help_only_guard_dog`，以及偷菜/帮忙各自的 `enabled_time_range` 与 `limit_count`；主界面仅显示黑名单条目数，详情弹窗可维护名单）
 - `grass`：自动种草任务（默认关闭；依次访问好友农场，先帮忙一次，点击 `1-1` 地块打开弹窗后拖拽草种到全部地块；无 `features` 分项开关）
 - `share`：独立分享任务（仅支持微信平台，通常配合每日触发）
@@ -191,7 +191,10 @@ python main.py
       "auto_plant": false,
       "auto_expand": false,
       "auto_upgrade": false,
-      "auto_fertilize": false
+      "auto_fertilize": false,
+      "maturity_threshold_seconds": 3600,
+      "auto_buy_fertilizer": false,
+      "fertilizer_purchase_threshold_seconds": 108000
     }
   },
   "friend": {
@@ -313,10 +316,6 @@ python main.py
   }
 }
 ```
-
-固定禁用项（运行时强制关闭）：
-
-- `main.auto_fertilize`
 
 `tasks.<task>.features` 字段说明：
 

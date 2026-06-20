@@ -40,6 +40,10 @@ class MainFeatures:
     auto_expand: bool = True
     auto_upgrade: bool = True
     auto_fertilize: bool = False
+    maturity_threshold_seconds: int = 3600
+    auto_buy_fertilizer: bool = False
+    fertilizer_purchase_threshold_seconds: int = 108000
+    use_organic_fertilizer: bool = False
 
 
 @dataclass(slots=True)
