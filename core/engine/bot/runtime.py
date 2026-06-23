@@ -8,13 +8,15 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+import cv2
+import numpy as np
 from loguru import logger
 
 from core.base.button import Button
 from core.exceptions import WindowNotFoundError
 from core.platform.action_executor import ActionExecutor
 from core.platform.device import Device
-from core.platform.window_manager import WindowInfo
+from core.platform.window_manager import WindowInfo, WindowManager
 from core.ui.assets import ASSET_NAME_TO_CONST
 from core.ui.page import (
     GOTO_MAIN,
@@ -23,7 +25,7 @@ from core.ui.page import (
 from core.ui.ui import UI
 from models.config import AppConfig, PlantMode, RunMode, resolve_effective_run_mode
 from models.game_data import get_best_crop_for_level, get_latest_crop_for_level
-from utils.template_paths import normalize_template_platform
+from utils.template_paths import normalize_template_platform, project_root
 
 if TYPE_CHECKING:
     from core.engine.bot.local_engine import LocalBotEngine
@@ -279,6 +281,321 @@ class BotRuntimeMixin:
         except Exception:
             seconds = 3
         return max(0, seconds)
+
+    def _resolve_window_repair_delay_seconds(self) -> int:
+        """读取一键修复后等待窗口恢复的等待时间（秒）。"""
+        value = self.config.window_repair_delay_seconds
+        if isinstance(value, bool):
+            return 8
+        try:
+            seconds = int(value)
+        except Exception:
+            seconds = 8
+        return max(0, seconds)
+
+    def _ensure_uiautomation(self):
+        """确保 uiautomation 包可用并初始化 COM。"""
+        try:
+            import uiautomation as _uia
+        except ImportError as exc:
+            raise RuntimeError(f'缺少 uiautomation 包: {exc}') from exc
+
+        try:
+            _uia.InitializeUIAutomationInThisThread()
+        except Exception:
+            pass
+        return _uia
+
+    def _get_invoke_pattern(self, element):
+        """安全获取元素的 InvokePattern。"""
+        try:
+            import uiautomation as _uia
+
+            pattern = element.GetPattern(_uia.PatternId.Invoke)
+            if pattern:
+                return pattern
+        except Exception:
+            pass
+        try:
+            return element.GetInvokePattern()
+        except Exception:
+            pass
+        return None
+
+    def _click_uia_element_by_name(self, root, name: str, *, desc: str = '') -> bool:
+        """在 UIA 控件树中按 Name 查找元素并调用 InvokePattern。"""
+        display = desc or name
+
+        def _search(element, depth: int = 0, max_depth: int = 12):
+            if depth > max_depth:
+                return None
+            try:
+                if (element.Name or '') == name:
+                    return element
+            except Exception as exc:
+                logger.debug(f'UIA {display} 读取元素 Name 失败: {exc}')
+            try:
+                for child in element.GetChildren():
+                    found = _search(child, depth + 1, max_depth)
+                    if found is not None:
+                        return found
+            except Exception as exc:
+                logger.debug(f'UIA {display} 遍历子元素失败: {exc}')
+            return None
+
+        def _element_info(element):
+            try:
+                return (element.Name or '', element.ControlTypeName, element.ClassName or '')
+            except Exception as exc:
+                logger.debug(f'UIA {display} 读取元素信息失败: {exc}')
+                return ('?', '?', '?')
+
+        target = _search(root)
+        if target is None:
+            logger.error(f'UIA 点击失败: {display} | 未找到 Name={name!r} 的元素')
+            return False
+
+        target_name, target_type, target_class = _element_info(target)
+        logger.info(
+            f'UIA 找到元素: {display} | Name={target_name!r} | ControlType={target_type} | ClassName={target_class!r}'
+        )
+        original_target_type = target_type
+
+        # 策略1：沿祖先向上查找可调用元素（例如文本位于 ListItem 内部）。
+        invoke_target = target
+        depth = 0
+        while invoke_target is not None and depth < 6:
+            target_name, target_type, target_class = _element_info(invoke_target)
+            pattern = self._get_invoke_pattern(invoke_target)
+            logger.info(
+                f'UIA {display} 尝试祖先 {depth}: Name={target_name!r} | '
+                f'ControlType={target_type} | ClassName={target_class!r} | '
+                f'Pattern={"有" if pattern else "无"}'
+            )
+            if pattern is not None:
+                try:
+                    pattern.Invoke()
+                    logger.info(f'UIA 点击成功: {display} | Name={target_name!r} | ControlType={target_type}')
+                    return True
+                except Exception as exc:
+                    logger.debug(f'UIA {display} 祖先 Invoke 失败: {exc}')
+            try:
+                parent = invoke_target.GetParent()
+                if parent is None or parent == invoke_target:
+                    break
+                invoke_target = parent
+                depth += 1
+            except Exception as exc:
+                logger.debug(f'UIA {display} 获取父元素失败: {exc}')
+                break
+
+        # 策略2：文本/编辑控件尝试中心点对应顶层元素。
+        if original_target_type in ('TextControl', 'EditControl'):
+            try:
+                rect = target.BoundingRectangle
+                if rect:
+                    cx = (rect.left + rect.right) // 2
+                    cy = (rect.top + rect.bottom) // 2
+                    uia = self._ensure_uiautomation()
+                    point_element = uia.ControlFromPoint(cx, cy)
+                    if point_element is not None and point_element != target:
+                        pattern = self._get_invoke_pattern(point_element)
+                        point_name, point_type, _ = _element_info(point_element)
+                        logger.info(
+                            f'UIA {display} 中心点 ({cx}, {cy}) 元素: '
+                            f'Name={point_name!r} | ControlType={point_type} | '
+                            f'Pattern={"有" if pattern else "无"}'
+                        )
+                        if pattern is not None:
+                            try:
+                                pattern.Invoke()
+                                logger.info(
+                                    f'UIA 点击成功(中心点): {display} | Name={point_name!r} | ControlType={point_type}'
+                                )
+                                return True
+                            except Exception as exc:
+                                logger.debug(f'UIA {display} 中心点 Invoke 失败: {exc}')
+            except Exception as exc:
+                logger.debug(f'UIA {display} 中心点查找失败: {exc}')
+
+        # 策略3：在父级兄弟元素中查找可调用元素。
+        if original_target_type in ('TextControl', 'EditControl'):
+            try:
+                parent = target.GetParent()
+                if parent is not None:
+                    logger.info(f'UIA {display} 在父级兄弟中查找可调用元素')
+                    for sibling in parent.GetChildren():
+                        if sibling == target:
+                            continue
+                        pattern = self._get_invoke_pattern(sibling)
+                        sibling_name, sibling_type, _ = _element_info(sibling)
+                        logger.info(
+                            f'UIA {display} 兄弟: Name={sibling_name!r} | '
+                            f'ControlType={sibling_type} | Pattern={"有" if pattern else "无"}'
+                        )
+                        if pattern is not None:
+                            try:
+                                pattern.Invoke()
+                                logger.info(
+                                    f'UIA 点击成功(兄弟): {display} | Name={sibling_name!r} | '
+                                    f'ControlType={sibling_type}'
+                                )
+                                return True
+                            except Exception as exc:
+                                logger.debug(f'UIA {display} 兄弟 Invoke 失败: {exc}')
+            except Exception as exc:
+                logger.debug(f'UIA {display} 父级兄弟查找失败: {exc}')
+
+        # 策略4：从根搜索包含目标 Name 的可调用容器。
+        def _contains_name(element, target_name, depth: int = 0, max_depth: int = 8):
+            if depth > max_depth:
+                return False
+            try:
+                if (element.Name or '') == target_name:
+                    return True
+            except Exception:
+                pass
+            try:
+                for child in element.GetChildren():
+                    if _contains_name(child, target_name, depth + 1, max_depth):
+                        return True
+            except Exception:
+                pass
+            return False
+
+        def _find_invokable_container(element, target_name, depth: int = 0, max_depth: int = 8):
+            if depth > max_depth:
+                return None
+            try:
+                control_type = element.ControlTypeName
+                if control_type in ('ListItemControl', 'ButtonControl', 'MenuItemControl'):
+                    if _contains_name(element, target_name):
+                        pattern = self._get_invoke_pattern(element)
+                        if pattern is not None:
+                            return element, pattern
+            except Exception:
+                pass
+            try:
+                for child in element.GetChildren():
+                    found = _find_invokable_container(child, target_name, depth + 1, max_depth)
+                    if found is not None:
+                        return found
+            except Exception:
+                pass
+            return None
+
+        try:
+            logger.info(f'UIA {display} 从根搜索可调用容器')
+            result = _find_invokable_container(root, name)
+            if result is not None:
+                container, pattern = result
+                container_name, container_type, _ = _element_info(container)
+                try:
+                    pattern.Invoke()
+                    logger.info(
+                        f'UIA 点击成功(容器): {display} | Name={container_name!r} | ControlType={container_type}'
+                    )
+                    return True
+                except Exception as exc:
+                    logger.debug(f'UIA {display} 容器 Invoke 失败: {exc}')
+        except Exception as exc:
+            logger.debug(f'UIA {display} 搜索容器失败: {exc}')
+
+        logger.error(f'UIA 点击失败: {display} | 找到元素但无可用 InvokePattern')
+        return False
+
+    def _find_uia_window_by_hwnd(self, hwnd: int):
+        """根据 hwnd 找到对应的 UIA 窗口元素。"""
+        uia = self._ensure_uiautomation()
+        try:
+            return uia.ControlFromHandle(hwnd)
+        except Exception as exc:
+            logger.error(f'UIA 查找窗口失败: hwnd=0x{hwnd:X} | {exc}')
+            return None
+
+    def _click_template_on_full_window(
+        self,
+        template_filename: str,
+        *,
+        roi_rel: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+        top_px: int | None = None,
+        threshold: float = 0.8,
+        desc: str = '',
+    ) -> bool:
+        """基于整窗截图（含标题栏）对模板进行匹配并点击，返回是否成功。
+
+        参数:
+            roi_rel: 相对 ROI (x1, y1, x2, y2)，取值 0~1。
+            top_px: 若指定，则 y2 最多为该像素值（优先限制顶部区域）。
+        """
+        window_manager = self.window_manager
+        hwnd = window_manager.get_window_handle()
+        if not hwnd:
+            logger.error(f'{desc} 失败: 未获取到窗口句柄')
+            return False
+
+        full_image = self.screen_capture.capture_window_print_full(hwnd)
+        if full_image is None:
+            logger.error(f'{desc} 失败: 整窗截图失败')
+            return False
+
+        window_rect = WindowManager._get_window_rect(hwnd)
+        if window_rect is None:
+            logger.error(f'{desc} 失败: 无法获取窗口外框矩形')
+            return False
+
+        platform = normalize_template_platform(self.config.planting.window_platform)
+        template_path = project_root() / 'templates' / platform / 'btn' / template_filename
+        if not template_path.exists():
+            logger.error(f'{desc} 失败: 模板不存在 {template_path}')
+            return False
+
+        template_bgr = cv2.imread(str(template_path), cv2.IMREAD_COLOR)
+        if template_bgr is None:
+            logger.error(f'{desc} 失败: 无法读取模板 {template_path}')
+            return False
+
+        img_bgr = cv2.cvtColor(np.array(full_image), cv2.COLOR_RGB2BGR)
+        img_h, img_w = img_bgr.shape[:2]
+        tpl_h, tpl_w = template_bgr.shape[:2]
+
+        x1 = max(0, int(img_w * roi_rel[0]))
+        y1 = max(0, int(img_h * roi_rel[1]))
+        x2 = min(img_w, int(img_w * roi_rel[2]))
+        y2 = min(img_h, int(img_h * roi_rel[3]))
+        if top_px is not None and top_px > 0:
+            y2 = min(y2, top_px)
+        if x2 <= x1 or y2 <= y1:
+            logger.error(f'{desc} 失败: ROI 非法 {roi_rel} | top_px={top_px}')
+            return False
+
+        roi = img_bgr[y1:y2, x1:x2]
+        result = cv2.matchTemplate(roi, template_bgr, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        if max_val < threshold:
+            logger.error(f'{desc} 失败: 最佳匹配置信度 {max_val:.3f} 低于阈值 {threshold}')
+            return False
+
+        match_left = x1 + max_loc[0]
+        match_top = y1 + max_loc[1]
+        click_x = match_left + tpl_w // 2
+        click_y = match_top + tpl_h // 2
+
+        executor = self.action_executor
+        if executor is None:
+            logger.error(f'{desc} 失败: ActionExecutor 未初始化')
+            return False
+
+        # 整窗截图坐标原点是窗口外框左上角；_click_background 需要屏幕绝对坐标。
+        abs_x = window_rect[0] + click_x
+        abs_y = window_rect[1] + click_y
+        ok = executor._click_background(abs_x, abs_y)
+        if not ok:
+            logger.error(f'{desc} 失败: 后台点击未成功')
+            return False
+
+        logger.info(f'{desc} 成功: 匹配置信度 {max_val:.3f} | 屏幕绝对坐标: ({abs_x}, {abs_y})')
+        return True
 
     def _resolve_window_launch_wait_timeout_seconds(self) -> float:
         """读取窗口拉起等待超时（秒）。"""

@@ -6,12 +6,14 @@ import io
 import os
 import queue
 import traceback
+from datetime import datetime
 from typing import Any
 
 from loguru import logger
 from PIL import Image as PILImage
 
 from core.engine.bot.local_engine import LocalBotEngine
+from core.engine.task.registry import TaskContext
 from models.config import AppConfig
 
 DEFAULT_LOG_RETENTION_DAYS = 7
@@ -241,6 +243,21 @@ def bot_worker_main(
                         retention_days=retention_days,
                     )
                     _safe_put(event_queue, _make_command_result(cmd_id, cmd, True))
+                    continue
+
+                if cmd == 'run_repair':
+                    logger.info('worker 收到 run_repair 命令')
+                    ok = False
+                    err = ''
+                    try:
+                        ctx = TaskContext(task_name='repair', started_at=datetime.now())
+                        result = engine._run_task_repair(ctx)
+                        ok = bool(result.success)
+                        err = str(result.error or '')
+                    except Exception as exc:
+                        err = str(exc or type(exc).__name__)
+                        logger.exception(f'run_repair failed: {exc}')
+                    _safe_put(event_queue, _make_command_result(cmd_id, cmd, ok, err))
                     continue
 
                 _safe_put(event_queue, _make_command_result(cmd_id, cmd, False, f'unknown command: {cmd}'))

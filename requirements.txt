@@ -19,3 +19,4 @@ keyboard>=0.13.5
 rapidocr==3.8.1
 onnxruntime==1.19.2
 winotify==1.1.0
+uiautomation>=2.0.0

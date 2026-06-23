@@ -46,6 +46,7 @@ from tasks.gift import TaskGift
 from tasks.grass import TaskGrass
 from tasks.land_scan import TaskLandScan
 from tasks.main import TaskMain
+from tasks.repair import TaskRepair
 from tasks.reward import TaskReward
 from tasks.sell import TaskSell
 from tasks.share import TaskShare
@@ -332,13 +333,26 @@ class BotExecutorMixin:
     def _handle_startup_exception(self, *, exc: Exception) -> tuple[bool, str]:
         """启动阶段异常单入口：返回 `(continue_loop, last_error)`。"""
         if isinstance(exc, LoginRepeatError):
+            if self._try_repair_for_login_repeat(source='startup'):
+                self._record_recovery_event(
+                    task_name='startup',
+                    error_key='login_repeat',
+                    action='repair_login_repeat',
+                    outcome='continue_startup',
+                )
+                repair_delay = self._resolve_window_repair_delay_seconds()
+                logger.warning(f'启动阶段检测到重复登录，已尝试一键修复，等待 {repair_delay}s 页面恢复后继续启动流程')
+                if not self.device.sleep(float(repair_delay)):
+                    return False, 'cancelled'
+                return True, 'login_repeat_repaired'
+
             self._record_recovery_event(
                 task_name='startup',
                 error_key='login_repeat',
                 action='fail_startup',
                 outcome='abort_startup',
             )
-            logger.error('检测到重复登录，请先手动处理后再启动')
+            logger.error('检测到重复登录，一键修复失败，请先手动处理后再启动')
             return False, 'login_repeat'
 
         error_key = self._error_key_for_exception(exc)
@@ -413,11 +427,28 @@ class BotExecutorMixin:
 
         if isinstance(exc, LoginRepeatError):
             self._task_exception_retry_counts.pop(task_name, None)
-            reason = f'检测到重复登录异常({task_name})，需人工接管，已停止任务'
+            if self._try_repair_for_login_repeat(source=task_name):
+                self._record_recovery_event(
+                    task_name=task_name,
+                    error_key=error_key,
+                    action='repair_login_repeat',
+                    outcome='continue',
+                )
+                # 修复成功后按失败间隔让原任务稍后重试，避免跳过本轮应执行内容。
+                min_interval = int(self.config.executor.min_task_interval_seconds)
+                default_failure = max(min_interval, int(self.config.executor.default_failure_interval))
+                cfg = self._get_task_cfg(task_name)
+                failure_interval = (
+                    max(min_interval, int(cfg.failure_interval_seconds)) if cfg is not None else default_failure
+                )
+                logger.warning(f'[{display_name}] 重复登录已尝试一键修复，按失败间隔 {failure_interval}s 后重试原任务')
+                return TaskResult(success=False, next_run_seconds=failure_interval)
+
+            reason = f'检测到重复登录异常({task_name})，一键修复失败，需人工接管，已停止任务'
             self._record_recovery_event(
                 task_name=task_name,
                 error_key=error_key,
-                action='manual_takeover',
+                action='repair_login_repeat',
                 outcome='stop',
             )
             self._request_manual_takeover(reason=reason)
@@ -979,6 +1010,38 @@ class BotExecutorMixin:
         self._reset_device_runtime_guards()
         task = TaskTimedHarvest(engine=self, ui=self.ui)
         return task.run(rect=rect)
+
+    def _run_task_repair(self, _ctx: TaskContext) -> TaskResult:
+        """执行 `repair` 子流程：QQ 小程序一键修复。"""
+        rect, err = self._prepare_task_scene('repair')
+        if err is not None:
+            return err
+        self._reset_device_runtime_guards()
+        task = TaskRepair(engine=self, ui=self.ui)
+        return task.run(rect=rect)
+
+    def _try_repair_for_login_repeat(self, *, source: str) -> bool:
+        """当检测到重复登录时，若为 QQ 平台则尝试执行一键修复任务。"""
+        try:
+            platform = self.config.planting.window_platform
+            if platform.value != 'qq':
+                logger.info(f'[{source}] 重复登录：非 QQ 平台({platform.value})，跳过一键修复')
+                return False
+        except Exception:
+            logger.info(f'[{source}] 重复登录：无法读取平台配置，跳过一键修复')
+            return False
+
+        logger.warning(f'[{source}] 重复登录：尝试执行一键修复任务')
+        try:
+            ctx = TaskContext(task_name='repair', started_at=datetime.now())
+            result = self._run_task_repair(ctx)
+            if result.success:
+                logger.info(f'[{source}] 一键修复任务执行成功')
+                return True
+            logger.error(f'[{source}] 一键修复任务执行失败: {result.error}')
+        except Exception as exc:
+            logger.exception(f'[{source}] 一键修复任务异常: {exc}')
+        return False
 
     def _run_task_restart(self, _ctx: TaskContext) -> TaskResult:
         """执行 `restart` 任务：支持定时重启与异常恢复重启。"""

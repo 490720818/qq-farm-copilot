@@ -11,6 +11,7 @@
       "sell": "出售",
       "land_scan": "地块巡查",
       "timed_harvest": "定时收获",
+      "repair": "定时修复",
       "restart": "定时重启"
     },
     "feature_labels": {
@@ -94,6 +95,7 @@
       "sell": "出售",
       "land_scan": "地块巡查",
       "timed_harvest": "定时收获",
+      "repair": "定时修复",
       "restart": "定时重启"
     },
     "task_hints": {

@@ -16,6 +16,7 @@ from models.task_views import (
     GrassTaskView,
     LandScanTaskView,
     MainTaskView,
+    RepairTaskView,
     RewardTaskView,
     SellTaskView,
     ShareTaskView,
@@ -68,6 +69,10 @@ class TaskViews:
     @property
     def event(self) -> EventTaskView:
         return self.owner.engine.build_task_view('event')  # type: ignore[return-value]
+
+    @property
+    def repair(self) -> RepairTaskView:
+        return self.owner.engine.build_task_view('repair')  # type: ignore[return-value]
 
     @property
     def reward(self) -> RewardTaskView:

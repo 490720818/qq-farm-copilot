@@ -447,6 +447,10 @@ class BotEngine(QObject):
         if self._worker and self._worker.is_alive():
             self._send_command('apply_log_retention', data={'days': days}, wait=False)
 
+    def run_repair(self) -> bool:
+        """发送命令到 worker：执行一键修复任务。"""
+        return self._send_command('run_repair', data={}, wait=True, timeout=30.0)
+
     def __del__(self):
         try:
             self._allow_idle_prewarm = False

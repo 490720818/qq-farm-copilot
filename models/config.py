@@ -755,6 +755,7 @@ class AppConfig(ConfigModel):
     window_shortcut_path: str = ''
     window_shortcut_launch_delay_seconds: int = 3
     window_restart_delay_seconds: int = 5
+    window_repair_delay_seconds: int = 8
     window_title_keyword: str = 'QQ经典农场'
     window_select_rule: str = 'auto'
     safety: SafetyConfig = Field(default_factory=SafetyConfig)
@@ -991,6 +992,16 @@ class AppConfig(ConfigModel):
             seconds = int(value)
         except Exception:
             seconds = 5
+        return max(0, seconds)
+
+    @field_validator('window_repair_delay_seconds', mode='before')
+    @classmethod
+    def _normalize_window_repair_delay_seconds(cls, value):
+        """规范化一键修复后等待时间（秒）。"""
+        try:
+            seconds = int(value)
+        except Exception:
+            seconds = 8
         return max(0, seconds)
 
     @classmethod

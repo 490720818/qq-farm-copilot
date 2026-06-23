@@ -17,6 +17,29 @@ from utils.run_mode_decorator import UNSET
 from utils.run_mode_decorator import Config as DecoratorConfig
 
 
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ('biSize', wintypes.DWORD),
+        ('biWidth', wintypes.LONG),
+        ('biHeight', wintypes.LONG),
+        ('biPlanes', wintypes.WORD),
+        ('biBitCount', wintypes.WORD),
+        ('biCompression', wintypes.DWORD),
+        ('biSizeImage', wintypes.DWORD),
+        ('biXPelsPerMeter', wintypes.LONG),
+        ('biYPelsPerMeter', wintypes.LONG),
+        ('biClrUsed', wintypes.DWORD),
+        ('biClrImportant', wintypes.DWORD),
+    ]
+
+
+class BITMAPINFO(ctypes.Structure):
+    _fields_ = [
+        ('bmiHeader', BITMAPINFOHEADER),
+        ('bmiColors', wintypes.DWORD * 3),
+    ]
+
+
 class ScreenCapture:
     """提供前台区域截图与后台 PrintWindow 截图能力。"""
 
@@ -96,67 +119,86 @@ class ScreenCapture:
             logger.error(f'截屏失败: {e}')
             return None
 
-    def capture_window_print(self, hwnd: int) -> Image.Image | None:
+    def _capture_print_window(
+        self,
+        hwnd: int,
+        *,
+        crop_to_client: bool,
+        log_prefix: str,
+    ) -> Image.Image | None:
         """后台截图：使用 PrintWindow 读取窗口位图。"""
+        hwnd = int(hwnd) if hwnd else 0
         if not hwnd:
             return None
 
         user32 = ctypes.windll.user32
         gdi32 = ctypes.windll.gdi32
 
+        # 64 位句柄可能被默认的 32 位签名 int 截断，显式声明类型避免溢出
+        user32.GetWindowDC.argtypes = [wintypes.HWND]
+        user32.GetWindowDC.restype = wintypes.HDC
+        user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+        user32.ReleaseDC.restype = wintypes.INT
+        gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+        gdi32.CreateCompatibleDC.restype = wintypes.HDC
+        gdi32.CreateCompatibleBitmap.argtypes = [wintypes.HDC, wintypes.INT, wintypes.INT]
+        gdi32.CreateCompatibleBitmap.restype = wintypes.HBITMAP
+        gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+        gdi32.SelectObject.restype = wintypes.HGDIOBJ
+        user32.PrintWindow.argtypes = [wintypes.HWND, wintypes.HDC, wintypes.UINT]
+        user32.PrintWindow.restype = wintypes.BOOL
+        gdi32.GetDIBits.argtypes = [
+            wintypes.HDC,
+            wintypes.HBITMAP,
+            wintypes.UINT,
+            wintypes.UINT,
+            wintypes.LPVOID,
+            ctypes.POINTER(BITMAPINFO),
+            wintypes.UINT,
+        ]
+        gdi32.GetDIBits.restype = wintypes.INT
+        gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+        gdi32.DeleteObject.restype = wintypes.BOOL
+        gdi32.DeleteDC.argtypes = [wintypes.HDC]
+        gdi32.DeleteDC.restype = wintypes.BOOL
+
         rect = wintypes.RECT()
         if not user32.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(rect)):
-            logger.error('PrintWindow截屏失败: GetWindowRect 调用失败')
-            self._record_print_failure('GetWindowRect 调用失败')
+            logger.error(f'{log_prefix}: GetWindowRect 调用失败')
+            if crop_to_client:
+                self._record_print_failure('GetWindowRect 调用失败')
             return None
         width = int(rect.right - rect.left)
         height = int(rect.bottom - rect.top)
         if width <= 0 or height <= 0:
-            logger.error(f'PrintWindow截屏失败: 非法窗口尺寸 {width}x{height}')
-            self._record_print_failure(f'非法窗口尺寸 {width}x{height}')
+            logger.error(f'{log_prefix}: 非法窗口尺寸 {width}x{height}')
+            if crop_to_client:
+                self._record_print_failure(f'非法窗口尺寸 {width}x{height}')
             return None
 
         hwnd_dc = user32.GetWindowDC(wintypes.HWND(hwnd))
         if not hwnd_dc:
-            logger.error('PrintWindow截屏失败: GetWindowDC 失败')
-            self._record_print_failure('GetWindowDC 失败')
+            logger.error(f'{log_prefix}: GetWindowDC 失败')
+            if crop_to_client:
+                self._record_print_failure('GetWindowDC 失败')
             return None
 
         mem_dc = gdi32.CreateCompatibleDC(hwnd_dc)
         if not mem_dc:
             user32.ReleaseDC(wintypes.HWND(hwnd), hwnd_dc)
-            logger.error('PrintWindow截屏失败: CreateCompatibleDC 失败')
-            self._record_print_failure('CreateCompatibleDC 失败')
+            logger.error(f'{log_prefix}: CreateCompatibleDC 失败')
+            if crop_to_client:
+                self._record_print_failure('CreateCompatibleDC 失败')
             return None
 
         bitmap = gdi32.CreateCompatibleBitmap(hwnd_dc, width, height)
         if not bitmap:
             gdi32.DeleteDC(mem_dc)
             user32.ReleaseDC(wintypes.HWND(hwnd), hwnd_dc)
-            logger.error('PrintWindow截屏失败: CreateCompatibleBitmap 失败')
-            self._record_print_failure('CreateCompatibleBitmap 失败')
+            logger.error(f'{log_prefix}: CreateCompatibleBitmap 失败')
+            if crop_to_client:
+                self._record_print_failure('CreateCompatibleBitmap 失败')
             return None
-
-        class BITMAPINFOHEADER(ctypes.Structure):
-            _fields_ = [
-                ('biSize', wintypes.DWORD),
-                ('biWidth', wintypes.LONG),
-                ('biHeight', wintypes.LONG),
-                ('biPlanes', wintypes.WORD),
-                ('biBitCount', wintypes.WORD),
-                ('biCompression', wintypes.DWORD),
-                ('biSizeImage', wintypes.DWORD),
-                ('biXPelsPerMeter', wintypes.LONG),
-                ('biYPelsPerMeter', wintypes.LONG),
-                ('biClrUsed', wintypes.DWORD),
-                ('biClrImportant', wintypes.DWORD),
-            ]
-
-        class BITMAPINFO(ctypes.Structure):
-            _fields_ = [
-                ('bmiHeader', BITMAPINFOHEADER),
-                ('bmiColors', wintypes.DWORD * 3),
-            ]
 
         old_obj = gdi32.SelectObject(mem_dc, bitmap)
         try:
@@ -164,8 +206,9 @@ class ScreenCapture:
             if not ok:
                 ok = user32.PrintWindow(wintypes.HWND(hwnd), mem_dc, 0)
             if not ok:
-                logger.error('PrintWindow截屏失败: PrintWindow 返回 0')
-                self._record_print_failure('PrintWindow 返回 0')
+                logger.error(f'{log_prefix}: PrintWindow 返回 0')
+                if crop_to_client:
+                    self._record_print_failure('PrintWindow 返回 0')
                 return None
 
             bmi = BITMAPINFO()
@@ -188,16 +231,20 @@ class ScreenCapture:
                 self.DIB_RGB_COLORS,
             )
             if rows != height:
-                logger.error(f'PrintWindow截屏失败: GetDIBits 行数异常 ({rows}/{height})')
-                self._record_print_failure(f'GetDIBits 行数异常 ({rows}/{height})')
+                logger.error(f'{log_prefix}: GetDIBits 行数异常 ({rows}/{height})')
+                if crop_to_client:
+                    self._record_print_failure(f'GetDIBits 行数异常 ({rows}/{height})')
                 return None
 
             image = Image.frombytes('RGB', (width, height), buffer.raw, 'raw', 'BGRX')
-            self._reset_print_failure_state()
-            return self._crop_print_image_to_client(hwnd, image, rect)
+            if crop_to_client:
+                self._reset_print_failure_state()
+                return self._crop_print_image_to_client(hwnd, image, rect)
+            return image
         except Exception as e:
-            logger.error(f'PrintWindow截屏失败: {e}')
-            self._record_print_failure(f'异常: {type(e).__name__}')
+            logger.error(f'{log_prefix}: {e}')
+            if crop_to_client:
+                self._record_print_failure(f'异常: {type(e).__name__}')
             return None
         finally:
             if old_obj:
@@ -205,6 +252,14 @@ class ScreenCapture:
             gdi32.DeleteObject(bitmap)
             gdi32.DeleteDC(mem_dc)
             user32.ReleaseDC(wintypes.HWND(hwnd), hwnd_dc)
+
+    def capture_window_print(self, hwnd: int) -> Image.Image | None:
+        """后台截图：使用 PrintWindow 读取窗口位图。"""
+        return self._capture_print_window(hwnd, crop_to_client=True, log_prefix='PrintWindow截屏失败')
+
+    def capture_window_print_full(self, hwnd: int) -> Image.Image | None:
+        """后台截图：使用 PrintWindow 读取窗口位图（含标题栏/菜单栏，不裁剪为客户区）。"""
+        return self._capture_print_window(hwnd, crop_to_client=False, log_prefix='PrintWindow整窗截屏失败')
 
     def _reset_print_failure_state(self) -> None:
         """清空 PrintWindow 连续失败状态。"""

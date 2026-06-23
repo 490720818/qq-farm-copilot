@@ -62,7 +62,7 @@ class FriendFeatures:
 
 @dataclass(slots=True)
 class GrassFeatures:
-    skip_probability: int = 0
+    skip_probability: float = 0.0
 
 
 @dataclass(slots=True)
@@ -143,6 +143,11 @@ class TimedHarvestTaskView(TaskViewBase):
 
 
 @dataclass(slots=True)
+class RepairTaskView(TaskViewBase):
+    feature: EmptyFeatures = field(default_factory=EmptyFeatures)
+
+
+@dataclass(slots=True)
 class RestartTaskView(TaskViewBase):
     feature: EmptyFeatures = field(default_factory=EmptyFeatures)
 
@@ -158,6 +163,7 @@ TASK_FEATURE_CLASS_MAP = {
     'sell': EmptyFeatures,
     'land_scan': EmptyFeatures,
     'timed_harvest': TimedHarvestFeatures,
+    'repair': EmptyFeatures,
     'restart': EmptyFeatures,
 }
 
@@ -172,5 +178,6 @@ TASK_VIEW_CLASS_MAP = {
     'sell': SellTaskView,
     'land_scan': LandScanTaskView,
     'timed_harvest': TimedHarvestTaskView,
+    'repair': RepairTaskView,
     'restart': RestartTaskView,
 }
