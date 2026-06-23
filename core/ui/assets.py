@@ -23,6 +23,7 @@ BTN_EXPAND_CHECK = Button(area={'qq': (219, 311, 314, 335), 'wechat': (219, 311,
 BTN_EXPAND_CONFIRM = Button(area={'qq': (245, 570, 295, 595), 'wechat': (245, 570, 295, 595)}, color={'qq': (190, 201, 105), 'wechat': (190, 201, 105)}, button={'qq': (245, 570, 295, 595), 'wechat': (245, 570, 295, 595)}, file={'qq': 'templates/qq/btn/btn_expand_confirm.png', 'wechat': 'templates/qq/btn/btn_expand_confirm.png'}, name='btn_expand_confirm')
 BTN_EXPAND_DIRECT_CONFIRM = Button(area={'qq': (245, 570, 295, 595), 'wechat': (245, 570, 295, 595)}, color={'qq': (190, 201, 105), 'wechat': (190, 201, 105)}, button={'qq': (245, 570, 295, 595), 'wechat': (245, 570, 295, 595)}, file={'qq': 'templates/qq/btn/btn_expand_direct_confirm.png', 'wechat': 'templates/qq/btn/btn_expand_direct_confirm.png'}, name='btn_expand_direct_confirm')
 BTN_FARMING = Button(area={'qq': (249, 689, 279, 719), 'wechat': (249, 689, 279, 719)}, color={'qq': (153, 130, 100), 'wechat': (153, 130, 100)}, button={'qq': (249, 689, 279, 719), 'wechat': (249, 689, 279, 719)}, file={'qq': 'templates/qq/btn/btn_farming.png', 'wechat': 'templates/qq/btn/btn_farming.png'}, name='btn_farming')  # 一键务农
+BTN_FERTILIZER_USE_CONFIRM = Button(area={'qq': (242, 609, 300, 638), 'wechat': (242, 609, 300, 638)}, color={'qq': (180, 196, 77), 'wechat': (180, 196, 77)}, button={'qq': (242, 609, 300, 638), 'wechat': (242, 609, 300, 638)}, file={'qq': 'templates/qq/btn/btn_fertilizer_use_confirm.png', 'wechat': 'templates/qq/btn/btn_fertilizer_use_confirm.png'}, name='btn_fertilizer_use_confirm')
 BTN_FRIEND_AGREED = Button(area={'qq': (316, 687, 416, 713), 'wechat': (316, 687, 416, 713)}, color={'qq': (190, 200, 110), 'wechat': (190, 200, 110)}, button={'qq': (316, 687, 416, 713), 'wechat': (316, 687, 416, 713)}, file={'qq': 'templates/qq/btn/btn_friend_agreed.png', 'wechat': 'templates/qq/btn/btn_friend_agreed.png'}, name='btn_friend_agreed')
 BTN_FRIEND_APPLY = Button(area={'qq': (220, 196, 318, 221), 'wechat': (220, 196, 318, 221)}, color={'qq': (226, 190, 167), 'wechat': (226, 190, 167)}, button={'qq': (220, 196, 318, 221), 'wechat': (220, 196, 318, 221)}, file={'qq': 'templates/qq/btn/btn_friend_apply.png', 'wechat': 'templates/qq/btn/btn_friend_apply.png'}, name='btn_friend_apply')
 BTN_FRIEND_RIGHT_FRAME = Button(area={'qq': (141, 846, 153, 913), 'wechat': (141, 846, 153, 913)}, color={'qq': (198, 229, 133), 'wechat': (198, 229, 133)}, button={'qq': (141, 846, 153, 913), 'wechat': (141, 846, 153, 913)}, file={'qq': 'templates/qq/btn/btn_friend_right_frame.png', 'wechat': 'templates/qq/btn/btn_friend_right_frame.png'}, name='btn_friend_right_frame')
@@ -49,6 +50,7 @@ BTN_LOGIN_AGAIN = Button(area={'qq': (325, 572, 423, 598), 'wechat': (325, 572, 
 BTN_MALL_FREE = Button(area={'qq': (122, 539, 183, 569), 'wechat': (123, 536, 183, 568)}, color={'qq': (146, 167, 48), 'wechat': (140, 170, 45)}, button={'qq': (122, 539, 183, 569), 'wechat': (123, 536, 183, 568)}, file={'qq': 'templates/qq/btn/btn_mall_free.png', 'wechat': 'templates/wechat/btn/btn_mall_free.png'}, name='btn_mall_free')
 BTN_MALL_FREE_DONE = Button(area={'qq': (121, 539, 183, 570), 'wechat': (123, 535, 183, 568)}, color={'qq': (208, 176, 139), 'wechat': (210, 182, 149)}, button={'qq': (121, 539, 183, 570), 'wechat': (123, 535, 183, 568)}, file={'qq': 'templates/qq/btn/btn_mall_free_done.png', 'wechat': 'templates/wechat/btn/btn_mall_free_done.png'}, name='btn_mall_free_done')
 BTN_MATURE = Button(area={'qq': (261, 457, 278, 479), 'wechat': (261, 457, 278, 479)}, color={'qq': (201, 181, 78), 'wechat': (201, 181, 78)}, button={'qq': (261, 457, 278, 479), 'wechat': (261, 457, 278, 479)}, file={'qq': 'templates/qq/btn/btn_mature.png', 'wechat': 'templates/qq/btn/btn_mature.png'}, name='btn_mature')
+BTN_MENU = Button(area={'qq': (0, 0, 26, 26), 'wechat': (0, 0, 26, 26)}, color={'qq': (249, 249, 249), 'wechat': (249, 249, 249)}, button={'qq': (0, 0, 26, 26), 'wechat': (0, 0, 26, 26)}, file={'qq': 'templates/qq/btn/btn_menu.png', 'wechat': 'templates/qq/btn/btn_menu.png'}, name='btn_menu')
 BTN_MONTHLY_CARD = Button(area={'qq': (213, 893, 333, 922), 'wechat': (213, 893, 333, 922)}, color={'qq': (182, 139, 102), 'wechat': (182, 139, 102)}, button={'qq': (213, 893, 333, 922), 'wechat': (213, 893, 333, 922)}, file={'qq': 'templates/qq/btn/btn_monthly_card.png', 'wechat': 'templates/qq/btn/btn_monthly_card.png'}, name='btn_monthly_card')
 BTN_MONTHLY_CARD_ACCEPT = Button(area={'qq': (246, 730, 298, 757), 'wechat': (246, 730, 298, 757)}, color={'qq': (187, 204, 104), 'wechat': (187, 204, 104)}, button={'qq': (246, 730, 298, 757), 'wechat': (246, 730, 298, 757)}, file={'qq': 'templates/qq/btn/btn_monthly_card_accept.png', 'wechat': 'templates/qq/btn/btn_monthly_card_accept.png'}, name='btn_monthly_card_accept')
 BTN_ONECLICK_OPEN = Button(area={'qq': (326, 805, 419, 829), 'wechat': (326, 805, 419, 829)}, color={'qq': (183, 197, 88), 'wechat': (183, 197, 88)}, button={'qq': (326, 805, 419, 829), 'wechat': (326, 805, 419, 829)}, file={'qq': 'templates/qq/btn/btn_oneclick_open.png', 'wechat': 'templates/qq/btn/btn_oneclick_open.png'}, name='btn_oneclick_open')
@@ -143,6 +145,7 @@ ASSET_NAME_TO_CONST = {
     'btn_expand_confirm': BTN_EXPAND_CONFIRM,
     'btn_expand_direct_confirm': BTN_EXPAND_DIRECT_CONFIRM,
     'btn_farming': BTN_FARMING,
+    'btn_fertilizer_use_confirm': BTN_FERTILIZER_USE_CONFIRM,
     'btn_friend_agreed': BTN_FRIEND_AGREED,
     'btn_friend_apply': BTN_FRIEND_APPLY,
     'btn_friend_right_frame': BTN_FRIEND_RIGHT_FRAME,
@@ -169,6 +172,7 @@ ASSET_NAME_TO_CONST = {
     'btn_mall_free': BTN_MALL_FREE,
     'btn_mall_free_done': BTN_MALL_FREE_DONE,
     'btn_mature': BTN_MATURE,
+    'btn_menu': BTN_MENU,
     'btn_monthly_card': BTN_MONTHLY_CARD,
     'btn_monthly_card_accept': BTN_MONTHLY_CARD_ACCEPT,
     'btn_oneclick_open': BTN_ONECLICK_OPEN,
