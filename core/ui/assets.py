@@ -94,6 +94,7 @@ ICON_NUM_7 = Button(area={'qq': (0, 0, 8, 12), 'wechat': (0, 0, 8, 12)}, color={
 ICON_NUM_8 = Button(area={'qq': (0, 0, 7, 12), 'wechat': (0, 0, 7, 12)}, color={'qq': (137, 127, 111), 'wechat': (137, 127, 111)}, button={'qq': (0, 0, 7, 12), 'wechat': (0, 0, 7, 12)}, file={'qq': 'templates/qq/icon/icon_num_8.png', 'wechat': 'templates/qq/icon/icon_num_8.png'}, name='icon_num_8')
 ICON_NUM_9 = Button(area={'qq': (0, 0, 8, 11), 'wechat': (0, 0, 8, 11)}, color={'qq': (139, 129, 112), 'wechat': (139, 129, 112)}, button={'qq': (0, 0, 8, 11), 'wechat': (0, 0, 8, 11)}, file={'qq': 'templates/qq/icon/icon_num_9.png', 'wechat': 'templates/qq/icon/icon_num_9.png'}, name='icon_num_9')
 ICON_NUM_LEFT = Button(area={'qq': (0, 0, 8, 26), 'wechat': (0, 0, 8, 26)}, color={'qq': (191, 171, 95), 'wechat': (191, 171, 95)}, button={'qq': (0, 0, 8, 26), 'wechat': (0, 0, 8, 26)}, file={'qq': 'templates/qq/icon/icon_num_left.png', 'wechat': 'templates/qq/icon/icon_num_left.png'}, name='icon_num_left')
+ICON_SEED_LOCKED = Button(area={'qq': (0, 0, 22, 21), 'wechat': (0, 0, 22, 21)}, color={'qq': (213, 196, 171), 'wechat': (213, 196, 171)}, button={'qq': (0, 0, 22, 21), 'wechat': (0, 0, 22, 21)}, file={'qq': 'templates/qq/icon/icon_seed_locked.png', 'wechat': 'templates/qq/icon/icon_seed_locked.png'}, name='icon_seed_locked')
 ICON_STEAL_IN_FRIEND_DETAIL = Button(area={'qq': (0, 0, 13, 20), 'wechat': (0, 0, 13, 20)}, color={'qq': (176, 142, 113), 'wechat': (176, 142, 113)}, button={'qq': (0, 0, 13, 20), 'wechat': (0, 0, 13, 20)}, file={'qq': 'templates/qq/icon/icon_steal_in_friend_detail.png', 'wechat': 'templates/qq/icon/icon_steal_in_friend_detail.png'}, name='icon_steal_in_friend_detail')
 ICON_STEAL_IN_FRIEND_LIST = Button(area={'qq': (0, 0, 30, 28), 'wechat': (0, 0, 30, 28)}, color={'qq': (212, 188, 169), 'wechat': (212, 188, 169)}, button={'qq': (0, 0, 30, 28), 'wechat': (0, 0, 30, 28)}, file={'qq': 'templates/qq/icon/icon_steal_in_friend_list.png', 'wechat': 'templates/qq/icon/icon_steal_in_friend_list.png'}, name='icon_steal_in_friend_list')
 MAIL_CHECK = Button(area={'qq': (245, 74, 295, 100), 'wechat': (244, 73, 297, 100)}, color={'qq': (231, 198, 172), 'wechat': (236, 206, 181)}, button={'qq': (245, 74, 295, 100), 'wechat': (244, 73, 297, 100)}, file={'qq': 'templates/qq/ui/mail_check.png', 'wechat': 'templates/wechat/ui/mail_check.png'}, name='mail_check')
@@ -218,6 +219,7 @@ ASSET_NAME_TO_CONST = {
     'icon_num_8': ICON_NUM_8,
     'icon_num_9': ICON_NUM_9,
     'icon_num_left': ICON_NUM_LEFT,
+    'icon_seed_locked': ICON_SEED_LOCKED,
     'icon_steal_in_friend_detail': ICON_STEAL_IN_FRIEND_DETAIL,
     'icon_steal_in_friend_list': ICON_STEAL_IN_FRIEND_LIST,
     'mail_check': MAIL_CHECK,

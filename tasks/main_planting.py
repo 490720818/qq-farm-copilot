@@ -27,6 +27,10 @@ if TYPE_CHECKING:
     from core.ui.ui import UI
     from models.config import AppConfig
 
+# 仓库优先模式下，检测候选种子周围锁定/数量不足标志的 ROI 与阈值。
+SEED_LOCKED_ROI_SIZE = 25
+SEED_LOCKED_THRESHOLD = 0.75
+
 
 class TaskMainPlantingMixin(TaskMainBuySeedMixin):
     """提供播种主链路。"""
@@ -503,6 +507,28 @@ class TaskMainPlantingMixin(TaskMainBuySeedMixin):
         )
         return point
 
+    def _is_seed_drag_point_locked(self, seed_drag_point: tuple[int, int]) -> bool:
+        """检测候选种子拖拽点周围是否存在 icon_seed_locked 锁定/数量不足标志。"""
+        cx, cy = int(seed_drag_point[0]), int(seed_drag_point[1])
+        roi = (
+            max(0, cx - SEED_LOCKED_ROI_SIZE),
+            max(0, cy - SEED_LOCKED_ROI_SIZE),
+            cx + SEED_LOCKED_ROI_SIZE,
+            cy + SEED_LOCKED_ROI_SIZE,
+        )
+        matched = self.ui.match_template_result(
+            ICON_SEED_LOCKED,
+            threshold=SEED_LOCKED_THRESHOLD,
+            roi=roi,
+        )
+        if matched:
+            logger.info(
+                '自动播种: 检测到种子锁定标志 icon_seed_locked | 拖拽点={} ROI={}',
+                seed_drag_point,
+                roi,
+            )
+        return bool(matched)
+
     def _drag_seed_to_lands(
         self,
         seed_drag_point: tuple[int, int],
@@ -708,6 +734,21 @@ class TaskMainPlantingMixin(TaskMainBuySeedMixin):
                 seed_drag_point,
                 sorted(excluded_indexes),
             )
+            if self._is_seed_drag_point_locked(seed_drag_point):
+                self.ui.device.click_button(GOTO_MAIN)
+                self.ui.device.sleep(0.2)
+                logger.info(
+                    '自动播种: 选中种子被锁定（数量不足），尝试购买种子后重试 | 作物={}',
+                    crop_name,
+                )
+                buy_result = self._buy_seeds(crop_name)
+                if not buy_result:
+                    logger.warning(
+                        '自动播种: 购买种子失败或未完成，结束本轮播种 | 作物={}',
+                        crop_name,
+                    )
+                    return actually_planted_refs, did_plant
+                return self._plant_all(crop_name, retry_round=retry_round + 1)
         else:
             seed_drag_point = self._select_seed_from_popup_by_warehouse_index(seed_index or 0, seed_popup_land)
             if seed_drag_point is None:
