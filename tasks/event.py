@@ -66,9 +66,12 @@ class TaskEvent(TaskBase):
                 logger.info(
                     '活动: 点击资源 | name={} delay={}s top_click={} threshold={}', name, delay, top_click, threshold
                 )
-                self.ui.device.sleep(delay)
                 if top_click:
+                    self.ui.device.sleep(CLICK_ANIMATION_DELAY)
                     self._click_top_area()
+                    self.ui.device.sleep(delay)
+                else:
+                    self.ui.device.sleep(delay)
             else:
                 logger.debug('活动: 资源未出现 | name={}', name)
 
