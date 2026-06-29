@@ -41,6 +41,29 @@ FERTILIZE_SHOP_PLUS_BUTTON = (345, 525)
 # 单次购买数量上限。
 FERTILIZE_SHOP_MAX_BUY_COUNT = 99
 
+# 施肥地块点击时的横向滑动修正阈值与点位（复用地块巡查逻辑）。
+# x<160 时画面左移（手指从左向右滑 P2->P1），x>330 时画面右移（手指从右向左滑 P1->P2），
+# 使边缘地块进入可点击区域。
+_FERTILIZE_EDGE_SWIPE_LEFT_THRESHOLD = 160
+_FERTILIZE_EDGE_SWIPE_RIGHT_THRESHOLD = 330
+_FERTILIZE_SWIPE_H_P1 = (250, 190)
+_FERTILIZE_SWIPE_H_P2 = (200, 190)
+_FERTILIZE_SWIPE_STEP_DELAY = 0.2
+_FERTILIZE_SWIPE_X_INTERVAL = abs(_FERTILIZE_SWIPE_H_P1[0] - _FERTILIZE_SWIPE_H_P2[0])
+# 屏幕宽度，用于判断后续地块是否仍在屏幕内。
+_FERTILIZE_SCREEN_WIDTH = 540
+# 9 列布局下最左 2 列与最右 2 列的地块编号，用于优先从中间地块开始施肥，减少滑动。
+_FERTILIZE_EDGE_PLOT_REFS: frozenset[str] = frozenset(
+    {
+        '1-4',  # physical col 1
+        '1-3',  # physical col 2
+        '2-4',  # physical col 2
+        '5-1',  # physical col 8
+        '6-2',  # physical col 8
+        '6-1',  # physical col 9
+    }
+)
+
 
 class TaskMainActionsMixin:
     """提供一键收获/务农/施肥能力。"""
@@ -168,15 +191,19 @@ class TaskMainActionsMixin:
             logger.warning('自动施肥: 地块坐标映射失败，跳过本轮')
             return None
 
+        # 维护横向视图偏移，处理边缘地块点击前的滑动修正。
+        view_offset_x = 0
+
         # 找一个非空地块来探测肥料库存；如果第一个地块是空地，继续尝试后面的
         probe_result: tuple[int, tuple[int, int]] | None = None
         probe_ref: str = ''
         probe_point: tuple[int, int] = (0, 0)
         for ref, point in all_targets:
-            probe_result = self._probe_fertilizer_hours(plot_ref=ref, point=point)
+            adjusted_point, view_offset_x = self._adjust_fertilize_view_offset(point, view_offset_x)
+            probe_result = self._probe_fertilizer_hours(plot_ref=ref, point=adjusted_point)
             if probe_result is not None:
                 probe_ref = ref
-                probe_point = point
+                probe_point = adjusted_point
                 break
         available_hours = probe_result[0] if probe_result is not None else 0
         quantity_point = probe_result[1] if probe_result is not None else (0, 0)
@@ -209,9 +236,10 @@ class TaskMainActionsMixin:
                 buy_threshold_hours,
             )
             probe_ref_for_buy = probe_ref if probe_ref else all_targets[0][0]
-            available_hours, quantity_point, _ = self._ensure_fertilizer_hours(
+            available_hours, quantity_point, _, view_offset_x = self._ensure_fertilizer_hours(
                 target_hours=buy_threshold_hours,
                 probe_ref=probe_ref_for_buy,
+                view_offset_x=view_offset_x,
             )
 
         if available_hours < required_hours:
@@ -229,52 +257,89 @@ class TaskMainActionsMixin:
                 )
             return None
 
-        popup_ref, popup_point = (probe_ref, probe_point) if probe_ref else all_targets[0]
-        if not self._open_plot_popup_for_fertilize(plot_ref=popup_ref, point=popup_point):
-            self.ui.device.click_button(GOTO_MAIN)
-            self.ui.device.sleep(0.2)
-            return None
-
         use_organic = bool(features.use_organic_fertilizer)
-        if use_organic:
-            fertilizer_loc = self.ui.appear_location(BTN_ORGANIC_FERTILIZER, offset=30, static=False)
-        else:
-            fertilizer_loc = self.ui.appear_location(BTN_ORDINARY_FERTILIZER, offset=30, static=False)
-            if fertilizer_loc is None:
+
+        # 分批拖拽施肥：每轮先对第一个未施肥地块循环滑动到 [160, 330] 可点击区域，
+        # 再拖拽到当前 view_offset_x 下所有仍在屏幕内（0 <= x <= 540）的地块；
+        # 超出屏幕的跳过，留到下一轮重新判断并滑动修正。
+        fertilized_flags = [False] * len(all_targets)
+        while not all(fertilized_flags):
+            first_idx = next((i for i, done in enumerate(fertilized_flags) if not done), -1)
+            if first_idx < 0:
+                break
+            first_ref, first_point = all_targets[first_idx]
+            adjusted_first, view_offset_x = self._adjust_fertilize_view_offset(first_point, view_offset_x)
+
+            if not self._open_plot_popup_for_fertilize(plot_ref=first_ref, point=adjusted_first):
+                logger.warning('自动施肥: 无法打开地块弹窗，跳过该地块 | plot={}', first_ref)
+                fertilized_flags[first_idx] = True
+                self.ui.device.click_button(GOTO_MAIN)
+                self.ui.device.sleep(0.2)
+                continue
+
+            if use_organic:
                 fertilizer_loc = self.ui.appear_location(BTN_ORGANIC_FERTILIZER, offset=30, static=False)
-        if fertilizer_loc is None:
-            logger.warning('自动施肥: 未识别到肥料按钮 | use_organic={}', use_organic)
+            else:
+                fertilizer_loc = self.ui.appear_location(BTN_ORDINARY_FERTILIZER, offset=30, static=False)
+                if fertilizer_loc is None:
+                    fertilizer_loc = self.ui.appear_location(BTN_ORGANIC_FERTILIZER, offset=30, static=False)
+            if fertilizer_loc is None:
+                logger.warning('自动施肥: 分批施肥未识别到肥料按钮 | use_organic={}', use_organic)
+                fertilized_flags[first_idx] = True
+                self.ui.device.click_button(GOTO_MAIN)
+                self.ui.device.sleep(0.2)
+                continue
+
+            drag_x, drag_y = int(fertilizer_loc[0]), int(fertilizer_loc[1])
+            dragging = False
+            try:
+                self.ui.device.drag_down_point(drag_x, drag_y, duration=0.1)
+                dragging = True
+                self.ui.device.sleep(0.1)
+
+                # 第一个地块：已循环滑动到范围内
+                self.ui.device.drag_move_point(int(adjusted_first[0]), int(adjusted_first[1]), duration=0.1)
+                self.ui.device.sleep(0.15)
+                fertilized_flags[first_idx] = True
+
+                # 后续地块：仅处理当前 view_offset_x 下仍在屏幕内的地块；
+                # 第一个地块已循环滑动到 [160, 330] 精确区域，后续地块只要没超出屏幕即可拖拽。
+                for i in range(first_idx + 1, len(all_targets)):
+                    if fertilized_flags[i]:
+                        continue
+                    ref, point = all_targets[i]
+                    effective_x = int(point[0]) + view_offset_x
+                    if not (0 <= effective_x <= _FERTILIZE_SCREEN_WIDTH):
+                        logger.debug(
+                            '自动施肥: 地块超出屏幕范围，跳过 | plot={} effective_x={}',
+                            ref,
+                            effective_x,
+                        )
+                        continue
+                    self.ui.device.drag_move_point(int(effective_x), int(point[1]), duration=0.1)
+                    self.ui.device.sleep(0.15)
+                    fertilized_flags[i] = True
+            finally:
+                if dragging:
+                    self.ui.device.drag_up()
+
             self.ui.device.click_button(GOTO_MAIN)
             self.ui.device.sleep(0.2)
-            return None
-
-        drag_x, drag_y = int(fertilizer_loc[0]), int(fertilizer_loc[1])
-        dragging = False
-        try:
-            self.ui.device.drag_down_point(drag_x, drag_y, duration=0.1)
-            dragging = True
-            self.ui.device.sleep(0.1)
-            for _, point in all_targets:
-                self.ui.device.drag_move_point(int(point[0]), int(point[1]), duration=0.1)
-                self.ui.device.sleep(0.15)
-        finally:
-            if dragging:
-                self.ui.device.drag_up()
 
         self.ui.device.click_button(GOTO_MAIN)
         self.ui.device.sleep(0.2)
         self.ui.ui_ensure(page_main)
 
-        fertilized_refs = [str(ref) for ref, _ in all_targets]
-        for _ in all_targets:
+        fertilized_count = sum(fertilized_flags)
+        fertilized_refs = [str(all_targets[i][0]) for i, done in enumerate(fertilized_flags) if done]
+        for _ in range(fertilized_count):
             self.engine._record_stat(ActionType.FERTILIZE)
 
-        fertilized_refs = [str(ref) for ref, _ in all_targets]
         if fertilized_refs and not use_organic:
             self._record_fertilize_time(fertilized_refs, threshold_seconds=threshold_seconds)
 
-        logger.info('自动施肥: 结束 | fertilized={}/{}', len(all_targets), required_hours)
-        return '自动施肥'
+        logger.info('自动施肥: 结束 | fertilized={}/{}', fertilized_count, required_hours)
+        return '自动施肥' if fertilized_count > 0 else None
 
     def _record_fertilize_time(self, plot_refs: list[str], *, threshold_seconds: int) -> None:
         """记录地块本次施肥时间与真实剩余成熟时间，用于普通化肥冷却防重施。"""
@@ -395,6 +460,11 @@ class TaskMainActionsMixin:
 
         candidates.sort(key=lambda row: (row[0], row[1]))
         refs = [plot_ref for _, plot_ref in candidates]
+        # 若首个地块位于最左/最右 2 列，则将其后置，优先从中间地块开始拖拽；
+        # 若全部命中地块都在边缘列，则不做调整。
+        if refs and refs[0] in _FERTILIZE_EDGE_PLOT_REFS:
+            if not all(ref in _FERTILIZE_EDGE_PLOT_REFS for ref in refs):
+                refs = refs[1:] + [refs[0]]
         logger.info('自动施肥: 倒计时命中地块={}', refs)
         return refs
 
@@ -442,6 +512,50 @@ class TaskMainActionsMixin:
                 continue
             targets.append((str(ref), point))
         return targets
+
+    def _adjust_fertilize_view_offset(
+        self,
+        point: tuple[int, int],
+        view_offset_x: int,
+    ) -> tuple[tuple[int, int], int]:
+        """根据当前横向偏移循环滑动修正，直到坐标进入可点击区域。
+
+        复用地块巡查的滑动修正逻辑：
+        - 修正后 x < 160 时画面左移（手指从左向右滑 P2->P1），偏移量增加一个滑动间隔；
+        - 修正后 x > 330 时画面右移（手指从右向左滑 P1->P2），偏移量减少一个滑动间隔。
+        循环执行，直到坐标落在 [160, 330] 范围内，避免边缘/超屏地块无法点击。
+        """
+        x, y = int(point[0]), int(point[1])
+        while True:
+            effective_x = x + view_offset_x
+            if effective_x < _FERTILIZE_EDGE_SWIPE_LEFT_THRESHOLD:
+                # 目标偏左，需要画面左移：手指从左向右滑（P2 -> P1）。
+                self.ui.device.swipe(_FERTILIZE_SWIPE_H_P2, _FERTILIZE_SWIPE_H_P1, speed=30)
+                self.ui.device.sleep(float(_FERTILIZE_SWIPE_STEP_DELAY))
+                view_offset_x += _FERTILIZE_SWIPE_X_INTERVAL
+                new_effective_x = x + view_offset_x
+                logger.info(
+                    '自动施肥: 左移画面修正 | 原x={} 修正后x={} 新偏移={}',
+                    effective_x,
+                    new_effective_x,
+                    view_offset_x,
+                )
+                continue
+            if effective_x > _FERTILIZE_EDGE_SWIPE_RIGHT_THRESHOLD:
+                # 目标偏右，需要画面右移：手指从右向左滑（P1 -> P2）。
+                self.ui.device.swipe(_FERTILIZE_SWIPE_H_P1, _FERTILIZE_SWIPE_H_P2, speed=30)
+                self.ui.device.sleep(float(_FERTILIZE_SWIPE_STEP_DELAY))
+                view_offset_x -= _FERTILIZE_SWIPE_X_INTERVAL
+                new_effective_x = x + view_offset_x
+                logger.info(
+                    '自动施肥: 右移画面修正 | 原x={} 修正后x={} 新偏移={}',
+                    effective_x,
+                    new_effective_x,
+                    view_offset_x,
+                )
+                continue
+            break
+        return (effective_x, y), view_offset_x
 
     def _probe_fertilizer_hours(
         self,
@@ -662,8 +776,13 @@ class TaskMainActionsMixin:
         *,
         target_hours: int,
         probe_ref: str,
-    ) -> tuple[int, tuple[int, int], bool]:
-        """自动购买并使用背包化肥，复检库存直到达到目标阈值或达到上限；返回 (库存小时, 数量坐标, 是否达标)。"""
+        view_offset_x: int,
+    ) -> tuple[int, tuple[int, int], bool, int]:
+        """自动购买并使用背包化肥，复检库存直到达到目标阈值或达到上限。
+
+        返回 (库存小时, 数量坐标, 是否达标, 新的横向视图偏移)。
+        每轮重新获取探测点坐标并做滑动修正，以应对购买流程返回主页面后画面回正的情况。
+        """
         last_hours = 0
         last_quantity_point: tuple[int, int] = (0, 0)
         for round_index in range(1, FERTILIZE_BUY_MAX_ROUNDS + 1):
@@ -671,13 +790,15 @@ class TaskMainActionsMixin:
             if not probe_targets:
                 logger.warning('自动施肥: 补货复检缺失地块坐标 | plot={}', probe_ref)
                 break
-            _, probe_point = probe_targets[0]
+            _, raw_probe_point = probe_targets[0]
+            probe_point, view_offset_x = self._adjust_fertilize_view_offset(raw_probe_point, view_offset_x)
+
             probed = self._probe_fertilizer_hours(plot_ref=probe_ref, point=probe_point)
             if probed is not None:
                 last_hours, last_quantity_point = probed
                 last_hours = max(0, int(last_hours))
             if last_hours >= int(target_hours):
-                return last_hours, last_quantity_point, True
+                return last_hours, last_quantity_point, True, view_offset_x
             needed_hours = max(1, int(target_hours) - last_hours)
             # 当前候选均为 10 小时化肥，按缺口计算购买数量
             buy_count = min(FERTILIZE_SHOP_MAX_BUY_COUNT, max(1, (needed_hours + 9) // 10))
@@ -708,7 +829,7 @@ class TaskMainActionsMixin:
                 break
             self.ui.device.click_button(GOTO_MAIN)
             self.ui.device.sleep(0.3)
-        return last_hours, last_quantity_point, last_hours >= int(target_hours)
+        return last_hours, last_quantity_point, last_hours >= int(target_hours), view_offset_x
 
     def _buy_fertilizer_once(self, *, buy_count: int = 1) -> bool:
         """执行一次肥料购买流程：进商店 → OCR 定位肥料 → 点击 → 调整数量 → 确认购买。"""
