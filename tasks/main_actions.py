@@ -484,15 +484,23 @@ class TaskMainActionsMixin:
             return None
         return hour * 3600 + minute * 60 + second
 
-    def _collect_fertilize_targets_for_refs(self, refs: list[str]) -> list[tuple[str, tuple[int, int]]]:
+    def _collect_fertilize_targets_for_refs(
+        self,
+        refs: list[str],
+        *,
+        anchor_threshold: float = 0.95,
+        log_prefix: str = '自动施肥',
+    ) -> list[tuple[str, tuple[int, int]]]:
         """将地块编号映射为当前画面中心点坐标。"""
         if not refs:
             return []
         self.ui.device.screenshot()
-        land_right_anchor = self.appear_land_right(offset=30, threshold=0.95, static=False)
-        land_left_anchor = self.ui.appear_location(BTN_LAND_LEFT, offset=30, threshold=0.95, static=False)
+        land_right_anchor = self.appear_land_right(offset=30, threshold=float(anchor_threshold), static=False)
+        land_left_anchor = self.ui.appear_location(
+            BTN_LAND_LEFT, offset=30, threshold=float(anchor_threshold), static=False
+        )
         if land_right_anchor is None and land_left_anchor is None:
-            logger.warning('自动施肥: 未识别到地块锚点 | refs={}', refs)
+            logger.warning('{}: 未识别到地块锚点 | refs={}', log_prefix, refs)
             return []
 
         all_lands = get_lands_from_land_anchor(
@@ -500,7 +508,7 @@ class TaskMainActionsMixin:
             (int(land_left_anchor[0]), int(land_left_anchor[1])) if land_left_anchor is not None else None,
         )
         if not all_lands:
-            logger.warning('自动施肥: 网格生成失败 | refs={}', refs)
+            logger.warning('{}: 网格生成失败 | refs={}', log_prefix, refs)
             return []
 
         center_by_plot_id = {str(cell.label): (int(cell.center[0]), int(cell.center[1])) for cell in all_lands}
@@ -508,7 +516,7 @@ class TaskMainActionsMixin:
         for ref in refs:
             point = center_by_plot_id.get(str(ref))
             if point is None:
-                logger.warning('自动施肥: 当前画面缺失地块坐标 | plot={}', ref)
+                logger.warning('{}: 当前画面缺失地块坐标 | plot={}', log_prefix, ref)
                 continue
             targets.append((str(ref), point))
         return targets

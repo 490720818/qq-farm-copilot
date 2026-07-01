@@ -64,66 +64,6 @@ class TaskMainLandMixin:
                 break
 
     @staticmethod
-    def _physical_col_from_plot_ref(plot_ref: str) -> int | None:
-        """由地块序号（如 `1-1`）计算物理列索引（1..9）。"""
-        text = str(plot_ref or '').strip()
-        left, sep, right = text.partition('-')
-        if sep != '-':
-            return None
-        try:
-            logical_col = int(left)
-            logical_row = int(right)
-        except Exception:
-            return None
-        idx = (4 - logical_row) + (logical_col - 1) + 1
-        return max(1, min(9, idx))
-
-    def _split_plot_refs_by_physical_group(self, plot_refs: list[str]) -> tuple[list[str], list[str]]:
-        """按物理列将地块序号拆分为 `1-5` 与 `6-9` 两组。"""
-        uniq_refs: list[str] = []
-        seen_refs: set[str] = set()
-        for ref in plot_refs:
-            text = str(ref or '').strip()
-            if not text or text in seen_refs:
-                continue
-            seen_refs.add(text)
-            uniq_refs.append(text)
-
-        ordered = sorted(
-            uniq_refs,
-            key=lambda ref: (
-                int(self._physical_col_from_plot_ref(ref) or 9),
-                ref,
-            ),
-        )
-
-        group_12345 = [ref for ref in ordered if int(self._physical_col_from_plot_ref(ref) or 9) <= 5]
-        group_6789 = [ref for ref in ordered if int(self._physical_col_from_plot_ref(ref) or 9) > 5]
-        return group_12345, group_6789
-
-    def _swipe_to_upgrade_group(self, group_name: str) -> None:
-        """根据分组执行升级前画面滑动。
-
-        与土地巡查一致：
-        - 左滑（P2->P1）画面左移，露出左侧地块；
-        - 右滑（P1->P2）画面右移，露出右侧地块。
-        """
-        # 参考土地巡查任务手势：LAND_SCAN_SWIPE_H_P1=(250,190), LAND_SCAN_SWIPE_H_P2=(200,190)
-        left_p1 = (250, 190)
-        left_p2 = (200, 190)
-        right_swipe_times = int(self.config.planting.land_swipe_right_times)
-        left_swipe_times = int(self.config.planting.land_swipe_left_times)
-        if group_name == '12345':
-            for _ in range(left_swipe_times):
-                self.ui.device.swipe(left_p2, left_p1, speed=30)
-                self.ui.device.sleep(0.5)
-            return
-        if group_name == '6789':
-            for _ in range(right_swipe_times):
-                self.ui.device.swipe(left_p1, left_p2, speed=30)
-                self.ui.device.sleep(0.5)
-
-    @staticmethod
     def _build_upgrade_icon_region(center: tuple[int, int]) -> tuple[int, int, int, int]:
         """按锚点与偏移构造升级图标检测 ROI。"""
         dx1, dy1, dx2, dy2 = LAND_UPGRADE_REGION_OFFSET
@@ -143,69 +83,65 @@ class TaskMainLandMixin:
         y2 = max(y1 + 1, min(y2, LAND_SCAN_FRAME_HEIGHT))
         return x1, y1, x2, y2
 
-    def _collect_group_targets_after_swipe(self, group_refs: list[str]) -> list[tuple[str, tuple[int, int]]]:
-        """滑动后重新采集当前组的实时地块坐标。"""
-        if not group_refs:
-            return []
-        live_targets = self.collect_land_targets_by_flag('need_upgrade', static=False, log_prefix='自动升级流程')
-        if not live_targets:
-            return []
-        live_map = {ref: point for ref, point in live_targets}
-        targets = [(ref, live_map[ref]) for ref in group_refs if ref in live_map]
-        missing_refs = [ref for ref in group_refs if ref not in live_map]
-        if missing_refs:
-            logger.warning('自动升级流程: 当前画面未找到地块 | 序号={}', missing_refs)
-        return targets
+    def _collect_upgrade_plot_refs(self) -> list[str]:
+        """从土地详情中收集 need_upgrade=true 的地块编号。"""
+        refs: list[str] = []
+        seen: set[str] = set()
+        for item in self.parse_land_detail_plots_by_flag('need_upgrade'):
+            ref = str(item.get('plot_id', '') or '').strip()
+            if ref and ref not in seen:
+                refs.append(ref)
+                seen.add(ref)
+        return refs
 
-    def _upgrade_targets(self, targets: list[tuple[str, tuple[int, int]]]) -> None:
-        """执行一组地块升级。"""
-        for plot_ref, point in targets:
-            logger.info('自动升级流程: 开始升级地块 | 序号={}', plot_ref)
+    def _upgrade_single_plot(self, plot_ref: str, point: tuple[int, int]) -> bool:
+        """点击指定地块并执行升级，返回是否成功。"""
+        logger.info('自动升级流程: 开始升级地块 | 序号={}', plot_ref)
 
-            need_upgrade = False
-            upgrade_button = None
-            click_timer = Timer(1, count=3).start()
-            self.engine.device.click_point(int(point[0]), int(point[1]), desc=f'点击待升级地块 {plot_ref}')
+        need_upgrade = False
+        upgrade_button = None
+        click_timer = Timer(1, count=3).start()
+        self.engine.device.click_point(int(point[0]), int(point[1]), desc=f'点击待升级地块 {plot_ref}')
+        while 1:
+            self.ui.device.screenshot()
+            removal_location = None
+            if self.ui.appear(BTN_CROP_REMOVAL, offset=30, static=False):
+                removal_location = self.ui.appear_location(BTN_CROP_REMOVAL, offset=30, static=False)
+            elif self.ui.appear(BTN_LAND_POP_EMPTY, offset=(-160, -180, 280, 280), threshold=0.65):
+                removal_location = self.ui.appear_location(
+                    BTN_LAND_POP_EMPTY, offset=(-160, -180, 280, 280), threshold=0.65
+                )
+
+            if removal_location is not None:
+                matched = self.ui.match_gif_multi(
+                    ICON_LAND_UPGRADE,
+                    roi=self._build_upgrade_icon_region(removal_location),
+                )
+                if matched:
+                    need_upgrade = True
+                    upgrade_button = matched[0]
+                else:
+                    logger.warning('自动升级流程: 地块不需要升级 | 序号={}', plot_ref)
+                break
+            if click_timer.reached():
+                logger.warning('自动升级流程: 地块点击出错 | 序号={}', plot_ref)
+                break
+            self.ui.device.sleep(0.1)
+
+        if need_upgrade and upgrade_button is not None:
+            self.engine.device.click_point(
+                int(upgrade_button.location[0]), int(upgrade_button.location[1]), desc='点击升级'
+            )
             while 1:
                 self.ui.device.screenshot()
-                removal_location = None
-                if self.ui.appear(BTN_CROP_REMOVAL, offset=30, static=False):
-                    removal_location = self.ui.appear_location(BTN_CROP_REMOVAL, offset=30, static=False)
-                elif self.ui.appear(BTN_LAND_POP_EMPTY, offset=(-160, -180, 280, 280), threshold=0.65):
-                    removal_location = self.ui.appear_location(
-                        BTN_LAND_POP_EMPTY, offset=(-160, -180, 280, 280), threshold=0.65
-                    )
-
-                if removal_location is not None:
-                    matched = self.ui.match_gif_multi(
-                        ICON_LAND_UPGRADE,
-                        roi=self._build_upgrade_icon_region(removal_location),
-                    )
-                    if matched:
-                        need_upgrade = True
-                        upgrade_button = matched[0]
-                    else:
-                        logger.warning('自动升级流程: 地块不需要升级 | 序号={}', plot_ref)
+                if self.ui.appear(BTN_LAND_UPGRADE_CHECK, offset=30):
                     break
-                if click_timer.reached():
-                    logger.warning('自动升级流程: 地块点击出错 | 序号={}', plot_ref)
-                    break
-                self.ui.device.sleep(0.1)
+            self._run_upgrade_steps_for_selected_land(plot_ref=plot_ref)
+            self.backfill_land_flag_false([plot_ref], 'need_upgrade', log_prefix='自动升级')
 
-            if need_upgrade and upgrade_button is not None:
-                # 点击升级图标
-                self.engine.device.click_point(
-                    int(upgrade_button.location[0]), int(upgrade_button.location[1]), desc='点击升级'
-                )
-                while 1:
-                    self.ui.device.screenshot()
-                    if self.ui.appear(BTN_LAND_UPGRADE_CHECK, offset=30):
-                        break
-                self._run_upgrade_steps_for_selected_land(plot_ref=plot_ref)
-                self.backfill_land_flag_false([plot_ref], 'need_upgrade', log_prefix='自动升级')
-
-            self.ui.device.click_button(GOTO_MAIN)
-            self.ui.device.sleep(0.2)
+        self.ui.device.click_button(GOTO_MAIN)
+        self.ui.device.sleep(0.2)
+        return need_upgrade
 
     def _try_expand(self) -> str | None:
         """执行一次土地扩建流程"""
@@ -252,26 +188,29 @@ class TaskMainLandMixin:
         logger.info('自动升级流程: 开始')
         self.ui.ui_ensure(page_main)
         self.ui.device.click_button(GOTO_MAIN)
+        self.align_view_by_background_tree(log_prefix='自动升级流程')
 
-        initial_targets = self.collect_land_targets_by_flag('need_upgrade', log_prefix='自动升级流程')
-        if not initial_targets:
+        target_refs = self._collect_upgrade_plot_refs()
+        if not target_refs:
             logger.info('自动升级流程: 无待升级地块')
             return None
 
-        initial_refs = [ref for ref, _ in initial_targets]
-        refs_12345, refs_6789 = self._split_plot_refs_by_physical_group(initial_refs)
-        if refs_12345:
-            logger.info('自动升级流程: 分组 1-5 | 序号={}', refs_12345)
-            self._swipe_to_upgrade_group('12345')
-            targets_12345 = self._collect_group_targets_after_swipe(refs_12345)
-            self._upgrade_targets(targets_12345)
+        # 复用自动施肥的地块坐标映射逻辑：基于当前画面锚点一次性计算所有地块中心点
+        all_targets = self._collect_fertilize_targets_for_refs(
+            target_refs, anchor_threshold=0.8, log_prefix='自动升级流程'
+        )
+        if not all_targets:
+            logger.warning('自动升级流程: 地块坐标映射失败')
+            return None
 
-        if refs_6789:
-            logger.info('自动升级流程: 分组 6-9 | 序号={}', refs_6789)
-            self._swipe_to_upgrade_group('6789')
-            targets_6789 = self._collect_group_targets_after_swipe(refs_6789)
-            self._upgrade_targets(targets_6789)
+        # 逐个地块升级，复用自动施肥的横向视图偏移修正
+        view_offset_x = 0
+        upgraded_count = 0
+        for plot_ref, point in all_targets:
+            adjusted_point, view_offset_x = self._adjust_fertilize_view_offset(point, view_offset_x)
+            if self._upgrade_single_plot(plot_ref, adjusted_point):
+                upgraded_count += 1
 
         self.align_view_by_background_tree(log_prefix='自动升级流程-结束回正')
-        logger.info('自动升级流程: 结束')
-        return
+        logger.info('自动升级流程: 结束 | upgraded={}', upgraded_count)
+        return '自动升级' if upgraded_count > 0 else None

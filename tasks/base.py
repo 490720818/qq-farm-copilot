@@ -291,22 +291,26 @@ class TaskBase:
         log_prefix: str = '土地流程',
         static: bool = True,
         anchor_span: tuple[int, int] | None = None,
+        anchor_threshold: float = 0.9,
     ) -> list['LandCell']:
         """收集当前画面的地块网格。
 
         Args:
             static: 是否仅在按钮预设区域附近检索。土地巡查等会滑动土地视图的流程，
                 应传入 False 以全图检索可滑动的左右锚点。
-            anchor_span: 左右锚点之间的像素间距 (dx, dy)。仅识别到单侧锚点时，
+            anchor_span: 左右锚点之间的像素间距 (dx, int)。仅识别到单侧锚点时，
                 用此间距推断另一侧位置；传 None 时使用基准间距。
+            anchor_threshold: 左右锚点模板匹配阈值。
         """
         from core.ui.assets import BTN_LAND_LEFT
         from utils.land_grid import get_lands_from_land_anchor
 
         self.ui.device.screenshot()
-        land_right_anchor = self.appear_land_right(offset=(-30, -30, 160, 30), threshold=0.9, static=static)
+        land_right_anchor = self.appear_land_right(
+            offset=(-30, -30, 160, 30), threshold=float(anchor_threshold), static=static
+        )
         land_left_anchor = self.ui.appear_location(
-            BTN_LAND_LEFT, offset=(-160, -30, 30, 30), threshold=0.9, static=static
+            BTN_LAND_LEFT, offset=(-160, -30, 30, 30), threshold=float(anchor_threshold), static=static
         )
         if land_right_anchor is None and land_left_anchor is None:
             logger.warning('{}: 未识别到地块锚点，跳过本轮', log_prefix)
@@ -339,18 +343,24 @@ class TaskBase:
         return center_by_plot_id
 
     def collect_land_targets_by_flag(
-        self, flag: str, *, static: bool = True, log_prefix: str = '土地流程'
+        self,
+        flag: str,
+        *,
+        static: bool = True,
+        anchor_threshold: float = 0.9,
+        log_prefix: str = '土地流程',
     ) -> list[tuple[str, tuple[int, int]]]:
         """按土地详情标记收集地块坐标。
 
         Args:
             static: 是否仅在按钮预设区域附近检索锚点。滑动土地视图后应传入 False。
+            anchor_threshold: 左右锚点模板匹配阈值，透传给 collect_land_cells。
         """
         pending_entries = self.parse_land_detail_plots_by_flag(flag)
         if not pending_entries:
             return []
 
-        cells = self.collect_land_cells(log_prefix=log_prefix, static=static)
+        cells = self.collect_land_cells(log_prefix=log_prefix, static=static, anchor_threshold=float(anchor_threshold))
         if not cells:
             return []
         center_by_plot_id = {str(cell.label): (int(cell.center[0]), int(cell.center[1])) for cell in cells}
