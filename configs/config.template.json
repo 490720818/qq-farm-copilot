@@ -3,6 +3,7 @@
   "window_shortcut_launch_delay_seconds": 3,
   "window_restart_delay_seconds": 5,
   "window_repair_delay_seconds": 8,
+  "wechat_mouse_guard_enabled": false,
   "window_title_keyword": "QQ经典农场",
   "window_select_rule": "auto",
   "safety": {

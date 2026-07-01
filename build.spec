@@ -12,6 +12,7 @@ a = Analysis(
         ('configs', 'configs'),
         ('templates', 'templates'),
         ('gui/icons', 'gui/icons'),
+        ('core/platform/assets/m.dll', 'core/platform/assets'),
     ]
     + rapidocr_datas,
     hiddenimports=[

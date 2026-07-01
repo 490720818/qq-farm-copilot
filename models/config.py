@@ -757,6 +757,7 @@ class AppConfig(ConfigModel):
     window_shortcut_launch_delay_seconds: int = 3
     window_restart_delay_seconds: int = 5
     window_repair_delay_seconds: int = 8
+    wechat_mouse_guard_enabled: bool = False
     window_title_keyword: str = 'QQ经典农场'
     window_select_rule: str = 'auto'
     safety: SafetyConfig = Field(default_factory=SafetyConfig)
@@ -1004,6 +1005,19 @@ class AppConfig(ConfigModel):
         except Exception:
             seconds = 8
         return max(0, seconds)
+
+    @field_validator('wechat_mouse_guard_enabled', mode='before')
+    @classmethod
+    def _normalize_wechat_mouse_guard_enabled(cls, value):
+        """规范化微信鼠标防占用开关。"""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in ('true', '1', 'yes', 'on')
+        try:
+            return bool(int(value))
+        except Exception:
+            return False
 
     @classmethod
     def load(cls, path: str | None = None, template_path: str | None = None) -> 'AppConfig':

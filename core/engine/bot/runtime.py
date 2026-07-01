@@ -16,6 +16,7 @@ from core.base.button import Button
 from core.exceptions import WindowNotFoundError
 from core.platform.action_executor import ActionExecutor
 from core.platform.device import Device
+from core.platform.wechat_mouse_guard import WeChatMouseGuard
 from core.platform.window_manager import WindowInfo, WindowManager
 from core.ui.assets import ASSET_NAME_TO_CONST
 from core.ui.page import (
@@ -47,6 +48,51 @@ class BotRuntimeMixin:
     def _engine(self) -> LocalBotEngine:
         """返回完整引擎视图，便于 IDE 识别跨 Mixin 方法。"""
         return cast('LocalBotEngine', self)
+
+    def _wechat_mouse_guard(self) -> WeChatMouseGuard | None:
+        """返回微信鼠标防占用管理器实例，按需懒加载。"""
+        if not getattr(self, '_mouse_guard', None):
+            try:
+                self._mouse_guard = WeChatMouseGuard()
+            except Exception as exc:
+                logger.warning('初始化微信鼠标防占用失败: {}', exc)
+                self._mouse_guard = None
+        return self._mouse_guard
+
+    def _apply_wechat_mouse_guard(self, hwnd: int, process_name: str | None = None) -> None:
+        """若配置开启且平台为微信，对目标窗口启用鼠标防占用 hook。"""
+        try:
+            if not self.config.wechat_mouse_guard_enabled:
+                return
+            if str(self.config.planting.window_platform.value) != 'wechat':
+                return
+            if process_name and str(process_name).lower() != 'wechatappex.exe':
+                logger.warning(
+                    '微信鼠标防占用仅对 wechatappex.exe 小程序窗口生效，'
+                    '当前窗口进程为 [{}]，建议将窗口选择改为 index:N 指定小程序窗口',
+                    process_name,
+                )
+                return
+            guard = self._wechat_mouse_guard()
+            if guard is None:
+                return
+            guard.apply(hwnd)
+        except Exception as exc:
+            logger.warning('启用微信鼠标防占用失败: {}', exc)
+
+    def _restore_wechat_mouse_guard(self, hwnd: int | None = None) -> None:
+        """恢复当前已启用的微信鼠标防占用 hook；可指定仅恢复某个 hwnd。"""
+        try:
+            guard = getattr(self, '_mouse_guard', None)
+            if guard is None:
+                return
+            if hwnd is not None:
+                if guard.hwnd == int(hwnd):
+                    guard.restore()
+                return
+            guard.restore()
+        except Exception as exc:
+            logger.warning('恢复微信鼠标防占用失败: {}', exc)
 
     def _wait_window_capture_stable(self, timeout: float = 0.5, interval: float = 0.04) -> None:
         """等待窗口截图区域稳定，避免固定睡眠造成的启动额外耗时。"""
@@ -831,6 +877,7 @@ class BotRuntimeMixin:
         if not self._stabilize_startup_ui():
             logger.error(f'[{task_name}] 重新登录恢复失败: 启动超时')
             return False
+        self._apply_wechat_mouse_guard(int(window.hwnd), getattr(window, 'process_name', None))
 
         logger.info(f'[{task_name}] 重新登录恢复成功: 已回到主页面')
         return True
@@ -892,6 +939,7 @@ class BotRuntimeMixin:
         if initialized_window is None:
             logger.error(f'异常恢复失败：未能回到主页面（{attempt}/{limit}）')
             return False
+        self._apply_wechat_mouse_guard(int(initialized_window.hwnd), getattr(initialized_window, 'process_name', None))
 
         logger.info(f'[{task_name}] 异常恢复完成: {err_type} | 重启窗口 {attempt}/{limit}')
         logger.info(f'异常恢复完成：已重启窗口并回到主页面（{attempt}/{limit}）')
@@ -1101,6 +1149,9 @@ class BotRuntimeMixin:
 
         assert window is not None
 
+        # 如果同一窗口残留了上一轮 hook，先恢复，避免窗口调整阶段消息处理异常。
+        self._restore_wechat_mouse_guard(int(window.hwnd))
+
         display_metrics = self.window_manager.get_display_metrics(window.hwnd)
         if display_metrics:
             logger.info(
@@ -1121,6 +1172,7 @@ class BotRuntimeMixin:
             logger.error('窗口刷新失败，请检查窗口是否仍存在')
             return False
         logger.info(f'窗口已调整（整窗外框目标：540x960 + 非客户区增量）-> 实际外框 {window.width}x{window.height}')
+        self._apply_wechat_mouse_guard(int(window.hwnd), getattr(window, 'process_name', None))
 
         rect = self.window_manager.get_capture_rect()
         if not rect:
@@ -1187,6 +1239,7 @@ class BotRuntimeMixin:
         if not engine._stop_executor():
             logger.warning('执行器仍在停止中，请稍候重试')
             return
+        self._restore_wechat_mouse_guard()
         self.ui = None
         self.device = None
         self.scheduler.force_state('idle')

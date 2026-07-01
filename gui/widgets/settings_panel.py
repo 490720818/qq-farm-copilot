@@ -136,6 +136,16 @@ class SettingsPanel(QWidget):
         run_mode_tip.setStyleSheet('color: #d97706;')
         env_form.addRow(self._field_label('', env_card), run_mode_tip)
 
+        self.wechat_mouse_guard = CheckBox('微信鼠标防占用', env_card)
+        env_form.addRow(self._field_label('', env_card), self.wechat_mouse_guard)
+        wechat_mouse_guard_tip = CaptionLabel(
+            '仅对微信窗口生效：启动阶段生效，防止后台点击时鼠标被窗口占用。',
+            env_card,
+        )
+        wechat_mouse_guard_tip.setWordWrap(True)
+        wechat_mouse_guard_tip.setStyleSheet('color: #d97706;')
+        env_form.addRow(self._field_label('', env_card), wechat_mouse_guard_tip)
+
         self.shortcut_path = LineEdit(env_card)
         self.shortcut_path.setPlaceholderText('请选择快捷方式')
         shortcut_row = QWidget(env_card)
@@ -478,6 +488,7 @@ class SettingsPanel(QWidget):
             self.platform.currentIndexChanged,
             self.run_mode.currentIndexChanged,
             self.shortcut_launch_delay.valueChanged,
+            self.wechat_mouse_guard.toggled,
             self.window_restart_delay.valueChanged,
             self.window_repair_delay.valueChanged,
             self.prefer_repair_before_restart.toggled,
@@ -794,6 +805,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
         self._set_combo_data(self.run_mode, c.safety.run_mode.value)
         self.shortcut_path.setText(str(c.window_shortcut_path or ''))
         self.shortcut_launch_delay.setValue(int(c.window_shortcut_launch_delay_seconds))
+        self.wechat_mouse_guard.setChecked(bool(c.wechat_mouse_guard_enabled))
         self.window_restart_delay.setValue(int(c.window_restart_delay_seconds))
         self.window_repair_delay.setValue(int(c.window_repair_delay_seconds))
         self.prefer_repair_before_restart.setChecked(bool(c.recovery.prefer_repair_before_restart))
@@ -842,6 +854,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
         c.safety.run_mode = RunMode(run_mode_value)
         c.window_shortcut_path = str(self.shortcut_path.text() or '').strip()
         c.window_shortcut_launch_delay_seconds = int(self.shortcut_launch_delay.value())
+        c.wechat_mouse_guard_enabled = bool(self.wechat_mouse_guard.isChecked())
         c.window_restart_delay_seconds = int(self.window_restart_delay.value())
         c.window_repair_delay_seconds = int(self.window_repair_delay.value())
         c.recovery.prefer_repair_before_restart = bool(self.prefer_repair_before_restart.isChecked())
