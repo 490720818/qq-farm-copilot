@@ -111,9 +111,61 @@ class ShopItemOCR:
         union = a.area + b.area - inter
         return inter / union if union > 0 else 0.0
 
+    # 商店商品卡片固定网格参数（相对 542x960 截图）。
+    # 商品网格在商店面板内的布局：4 列均匀分布，每行高度约 120px。
+    SHOP_GRID_X1 = 18
+    SHOP_GRID_X2 = 524
+    SHOP_GRID_Y1 = 218
+    SHOP_GRID_Y2 = 944
+    SHOP_GRID_COLS = 4
+    SHOP_GRID_ROWS = 6
+
     @staticmethod
     def detect_shop_cards(img_bgr: np.ndarray) -> list[ShopCard]:
-        """检测 `shop_cards` 并输出识别结果。"""
+        """检测 `shop_cards` 并输出识别结果。
+
+        优先使用基于商店固定 4 列网格的分割；若失败则 fall back 到 Canny 轮廓。
+        """
+        cards = ShopItemOCR._detect_shop_cards_by_grid(img_bgr)
+        if cards:
+            return cards
+        return ShopItemOCR._detect_shop_cards_by_contours(img_bgr)
+
+    @staticmethod
+    def _detect_shop_cards_by_grid(img_bgr: np.ndarray) -> list[ShopCard]:
+        """按固定 4 列网格划分商品卡片，并过滤掉顶部/底部被截断的不完整行。"""
+        h, w = img_bgr.shape[:2]
+        x1 = int(round(ShopItemOCR.SHOP_GRID_X1 * w / 542.0))
+        x2 = int(round(ShopItemOCR.SHOP_GRID_X2 * w / 542.0))
+        y1 = int(round(ShopItemOCR.SHOP_GRID_Y1 * h / 960.0))
+        y2 = int(round(ShopItemOCR.SHOP_GRID_Y2 * h / 960.0))
+
+        col_width = (x2 - x1) / max(1, ShopItemOCR.SHOP_GRID_COLS)
+        row_height = (y2 - y1) / max(1, ShopItemOCR.SHOP_GRID_ROWS)
+        if col_width <= 1 or row_height <= 1:
+            return []
+
+        # 只保留 y 范围完全落在图像内的卡片，避免顶部/底部被滑动截断的半行。
+        min_card_y = 0
+        max_card_y = h
+
+        cards: list[ShopCard] = []
+        for row in range(ShopItemOCR.SHOP_GRID_ROWS):
+            for col in range(ShopItemOCR.SHOP_GRID_COLS):
+                cx1 = int(round(x1 + col * col_width))
+                cx2 = int(round(x1 + (col + 1) * col_width))
+                cy1 = int(round(y1 + row * row_height))
+                cy2 = int(round(y1 + (row + 1) * row_height))
+                if cy1 < min_card_y or cy2 > max_card_y:
+                    continue
+                cw = max(1, cx2 - cx1)
+                ch = max(1, cy2 - cy1)
+                cards.append(ShopCard(x=cx1, y=cy1, w=cw, h=ch, area=cw * ch))
+        return cards
+
+    @staticmethod
+    def _detect_shop_cards_by_contours(img_bgr: np.ndarray) -> list[ShopCard]:
+        """基于 Canny 轮廓的商品卡片检测（原实现，作为 fallback）。"""
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         edge = cv2.Canny(blur, 50, 150)
@@ -305,6 +357,9 @@ class ShopItemOCR:
         if not cards:
             for it in all_items:
                 raw = self._clean_text(it.text)
+                # 等级标签（如 "10品"）不是价格，避免误匹配。
+                if re.match(r'^\d+品$', raw):
+                    continue
                 digits = re.sub(r'\D+', '', raw)
                 if not digits:
                     continue
@@ -355,7 +410,9 @@ class ShopItemOCR:
     def find_item(self, img_bgr: np.ndarray, target_name: str, min_similarity: float = 0.70) -> ShopItemMatch:
         """执行 `find item` 相关处理。"""
         parsed = self.detect_items(img_bgr)
-        parsed_debug = '; '.join(f'{item.name}/{item.raw_name}@({item.center_x},{item.center_y})' for item in parsed)
+        parsed_debug = '; '.join(
+            f'{item.name}/{item.raw_name}@{item.price}@({item.center_x},{item.center_y})' for item in parsed
+        )
         logger.debug("OCR识别内容: target='{}' | items={}", target_name, parsed_debug or '[]')
         if not parsed:
             return ShopItemMatch(target=None, best=None, best_similarity=0.0, parsed_items=[])
